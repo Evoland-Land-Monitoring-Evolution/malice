@@ -5,6 +5,8 @@
   - The VicRegL loss are implemented at the bottleneck of the U-TAE and at the output (local and global features)
 ## Installation
   In the conda env:  `pip install -e . `
+### Requirements
+- openeo_mmdc
 ## Pre-training
 ## Downstream task
 ### Change Detection
