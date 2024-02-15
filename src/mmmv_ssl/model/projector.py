@@ -25,3 +25,13 @@ def MLP(d_in: int, d_out: int, l_dim: list, norm_layer="batch_norm"):
         layers.append(nn.ReLU(True))
     layers.append(nn.Linear(f[-2], f[-1], bias=False))
     return nn.Sequential(*layers)
+
+
+class MMProjector(nn.Module):
+    def __init__(self, proj1: nn.Module, proj2: nn.Module):
+        super().__init__()
+        self.proj2 = proj2
+        self.proj1 = proj1
+
+    def forward(self, repr_1, repr_2):
+        return self.proj1(repr_1), self.proj2(repr_2)

@@ -21,6 +21,7 @@ from mmmv_ssl.loss.vicreg_loss import (
     VicRegLoss,
 )
 from mmmv_ssl.model.dataclass import OutUTAEForward
+from mmmv_ssl.model.projector import MMProjector
 from mmmv_ssl.model.utae import UTAE
 
 my_logger = logging.getLogger(__name__)
@@ -33,14 +34,16 @@ class LVicRegModule(pl.LightningModule):
         d_emb: int,
         d_model: int,
         stats: None | Stats,
-        model: UTAE,
-        projector_bottleneck: nn.Module,
-        projector_local: nn.Module,
+        model1: UTAE,
+        model2: UTAE,
+        projector_bottleneck: MMProjector,
+        projector_local: MMProjector,
     ):  # TODO define a dataclass for train_config
         super().__init__()
         self.d_model = d_model
         self.d_emb = d_emb
-        self.model: UTAE = model
+        self.model1: UTAE = model1
+        self.model2: UTAE = model2
         self.train_config = train_config
         self.learning_rate = train_config.lr
         self.scheduler = train_config.scheduler
@@ -48,7 +51,8 @@ class LVicRegModule(pl.LightningModule):
         self.bs = train_config.batch_size
         self.stats = stats
         self.metric_name = []
-        self.model.return_maps = True
+        self.model1.return_maps = True
+        self.model2.return_maps = True
         self.w_inv = train_config.w_inv
         self.w_cov = train_config.w_cov
         self.w_var = train_config.w_var
@@ -59,17 +63,17 @@ class LVicRegModule(pl.LightningModule):
         self.var_loss = VarianceLoss()
         self.cov_loss = CovarianceLoss(self.d_emb)
         self.inv_loss = nn.MSELoss()
-        my_logger.debug(f"UTAE return maps set to {self.model.return_maps}")
+        my_logger.debug(f"UTAE return maps set to {self.model1.return_maps}")
 
     def forward(
         self, batch: BatchVicReg
     ) -> tuple[OutUTAEForward, OutUTAEForward]:
-        repr_1 = self.model(
+        repr_1 = self.model1(
             input=batch.sits1.sits,
             batch_positions=batch.sits1.doy,
             key_padding_mask=batch.sits1.padd_mask,
         )
-        repr_2 = self.model(
+        repr_2 = self.model2(
             input=batch.sits2.sits,
             batch_positions=batch.sits2.doy,
             key_padding_mask=batch.sits2.padd_mask,
@@ -143,15 +147,18 @@ class LVicRegModule(pl.LightningModule):
         return loss
 
     def apply_vic_reg_loss(
-        self, repr_1: Tensor, repr_2: Tensor, projector: nn.Module
+        self, repr_1: Tensor, repr_2: Tensor, projector: MMProjector
     ) -> VicRegLoss:
         b, t, c, h, w = repr_1.shape
-        repr = rearrange(
-            torch.stack([repr_1, repr_2]), "r b t c h w -> (r b t h w) c"
+        my_logger.debug(f"t dim {t}")
+        emb1, emb2 = projector.forward(
+            rearrange(repr_1, "b t c h w -> (b t h w) c"),
+            rearrange(repr_2, "b t c h w -> (b t h w) c"),
         )
+        emb = torch.stack([emb1, emb2])
         emb = rearrange(
-            projector(repr),
-            "(r b t h w ) c -> r b t c h w",
+            emb,
+            "r (b t h w ) c -> r b t c h w",
             r=2,
             b=b,
             t=t,
