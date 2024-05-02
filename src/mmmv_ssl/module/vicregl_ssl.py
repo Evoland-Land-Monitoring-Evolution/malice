@@ -13,7 +13,7 @@ from torch import Tensor
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from mmmv_ssl.data.dataclass import BatchVicReg
+from mmmv_ssl.data.dataclass import BatchMMSits
 from mmmv_ssl.loss.vicreg_loss import (
     CovarianceLoss,
     TotalLoss,
@@ -66,22 +66,22 @@ class LVicRegModule(pl.LightningModule):
         my_logger.debug(f"UTAE return maps set to {self.model1.return_maps}")
 
     def forward(
-        self, batch: BatchVicReg
+        self, batch: BatchMMSits
     ) -> tuple[OutUTAEForward, OutUTAEForward]:
         repr_1 = self.model1(
             input=batch.sits1.sits,
-            batch_positions=batch.sits1.doy,
-            key_padding_mask=batch.sits1.padd_mask,
+            batch_positions=batch.sits1.input_doy,
+            key_padding_mask=batch.sits1.padd_index,
         )
         repr_2 = self.model2(
             input=batch.sits2.sits,
-            batch_positions=batch.sits2.doy,
-            key_padding_mask=batch.sits2.padd_mask,
+            batch_positions=batch.sits2.input_doy,
+            key_padding_mask=batch.sits2.padd_index,
         )
         return repr_1, repr_2
 
     def shared_step(
-        self, batch: BatchVicReg
+        self, batch: BatchMMSits
     ) -> tuple[TotalLoss, OutUTAEForward, OutUTAEForward]:
         out1, out2 = self.forward(
             batch
@@ -111,7 +111,7 @@ class LVicRegModule(pl.LightningModule):
         )
         return total_loss, out1, out2
 
-    def training_step(self, batch: BatchVicReg, batch_idx: int):
+    def training_step(self, batch: BatchMMSits, batch_idx: int):
         total_loss, out1, out2 = self.shared_step(batch)
         loss = total_loss.total_loss()
         self.log_dict(
@@ -123,7 +123,7 @@ class LVicRegModule(pl.LightningModule):
         )
         return loss
 
-    def validation_step(self, batch: BatchVicReg, batch_idx: int):
+    def validation_step(self, batch: BatchMMSits, batch_idx: int):
         total_loss, out1, out2 = self.shared_step(batch)
         self.log_dict(
             total_loss.to_dict(suffix="val"),
@@ -134,7 +134,7 @@ class LVicRegModule(pl.LightningModule):
         )
         return out1, out2
 
-    def test_step(self, batch: BatchVicReg, batch_idx: int):
+    def test_step(self, batch: BatchMMSits, batch_idx: int):
         total_loss, out1, out2 = self.shared_step(batch)
         loss = total_loss.total_loss()
         self.log_dict(

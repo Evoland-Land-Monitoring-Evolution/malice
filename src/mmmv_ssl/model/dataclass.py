@@ -8,3 +8,9 @@ class OutUTAEForward:
     seg_map: Tensor
     attn: Tensor | None = None
     feature_maps: list[Tensor] | None = None
+
+
+@dataclass
+class OutTempProjForward:
+    s1: Tensor
+    s2: Tensor

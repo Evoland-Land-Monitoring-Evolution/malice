@@ -10,7 +10,7 @@ from torch import Tensor
 @dataclass
 class SITSOneMod:
     sits: Tensor
-    doy: Tensor
+    input_doy: Tensor
     true_doy: Tensor
     padd_mask: Tensor | None = None
     mask: Tensor | None = None
@@ -19,7 +19,7 @@ class SITSOneMod:
         sits = rearrange(self.sits, "c t h w -> t c h w")
         t = sits.shape[0]
         sits, doy, padd_index = apply_padding(
-            allow_padd, max_len, t, sits, self.doy
+            allow_padd, max_len, t, sits, self.input_doy
         )
         padd_doy = (0, max_len - t)
         true_doy = F.pad(self.true_doy, padd_doy)
@@ -30,7 +30,7 @@ class SITSOneMod:
             mask = None
         return SITSOneMod(
             sits=sits,
-            doy=doy,
+            input_doy=doy,
             true_doy=true_doy,
             mask=mask,
             padd_mask=padd_index,
@@ -47,46 +47,54 @@ class BatchOneMod:
     def __init__(
         self,
         sits: Tensor,
-        doy: Tensor,
+        input_doy: Tensor,
         true_doy: Tensor,
-        padd_mask: Tensor = None,
+        padd_index: Tensor = None,
         mask: Tensor | None = None,
     ):
         self.true_doy = true_doy
         assert len(sits.shape) == 5, f"Incorrect sits shape {sits.shape}"
         self.sits = sits
-        assert len(doy.shape) == 2, f"Incorrect doy shape {doy.shape}"
-        self.doy = doy
-        if padd_mask is not None:
+        assert (
+            len(input_doy.shape) == 2
+        ), f"Incorrect doy shape {input_doy.shape}"
+        self.input_doy = input_doy
+        assert input_doy.shape[1] == sits.shape[1]
+        if padd_index is not None:
             assert (
-                len(padd_mask.shape) == 2
-            ), f"Incorrect padd_doy {padd_mask.shape}"
-        self.padd_mask = padd_mask
+                len(padd_index.shape) == 2
+            ), f"Incorrect padd_doy {padd_index.shape}"
+        self.padd_index = padd_index
         self.mask = mask
+        self.b = sits.shape[0]
+        self.t = sits.shape[1]
+        self.c = sits.shape[2]
+        self.h = sits.shape[3]
+        self.w = sits.shape[4]
 
     def pin_memory(self):
         self.sits = self.sits.pin_memory()
-        self.doy = self.doy.pin_memory()
+        self.input_doy = self.input_doy.pin_memory()
         self.true_doy = self.true_doy.pin_memory()
-        if self.padd_mask is not None:
-            self.padd_mask = self.padd_mask.pin_memory()
+        if self.padd_index is not None:
+            self.padd_index = self.padd_index.pin_memory()
         if self.mask is not None:
             self.mask = self.mask.pin_memory()
         return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
         self.sits = self.sits.to(device=device, dtype=dtype)
-        self.doy = self.doy.to(device, dtype=dtype)
+        self.input_doy = self.input_doy.to(device, dtype=dtype)
         self.true_doy = self.true_doy.to(device, dtype=dtype)
-        if self.padd_mask is not None:
-            self.padd_mask = self.padd_mask.to(device=device, dtype=dtype)
+        if self.padd_index is not None:
+            self.padd_index = self.padd_index.to(device=device, dtype=dtype)
         if self.mask is not None:
             self.mask = self.mask.to(device=device, dtype=dtype)
         return self
 
 
 @dataclass
-class BatchVicReg:
+class BatchMMSits:
     sits1: BatchOneMod
     sits2: BatchOneMod
 
@@ -98,3 +106,9 @@ class BatchVicReg:
         self.sits1 = self.sits1.to(device=device, dtype=dtype)
         self.sits2 = self.sits2.to(device=device, dtype=dtype)
         return self
+
+
+@dataclass
+class MMChannels:
+    s1_channels: int = 3
+    s2_channels: int = 10

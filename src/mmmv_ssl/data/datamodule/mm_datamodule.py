@@ -12,7 +12,7 @@ from openeo_mmdc.dataset.to_tensor import load_all_transforms
 from torch.utils.data import DataLoader
 
 from mmmv_ssl.constant.dataset import S2_BAND
-from mmmv_ssl.data.dataclass import BatchVicReg
+from mmmv_ssl.data.dataclass import BatchMMSits
 from mmmv_ssl.data.dataset.collate_fn import collate_fn_mm_dataset
 from mmmv_ssl.data.dataset.pretraining_mm_year_dataset import (
     ConfigPretrainingMMYearDataset,
@@ -112,8 +112,8 @@ class TemplateDataModule(pl.LightningDataModule):
         )
 
     def on_after_batch_transfer(
-        self, batch: BatchVicReg, dataloader_idx: int
-    ) -> BatchVicReg:
+        self, batch: BatchMMSits, dataloader_idx: int
+    ) -> BatchMMSits:
         "apply transform on device"
         batch.sits1.sits = apply_transform_basic(
             batch.sits1.sits, transform=self.all_transform.s1_asc.transform
@@ -124,7 +124,7 @@ class TemplateDataModule(pl.LightningDataModule):
         return batch
 
     def transfer_batch_to_device(
-        self, batch: BatchVicReg, device, dataloader_idx: int
+        self, batch: BatchMMSits, device, dataloader_idx: int
     ):
         if dataloader_idx == 0:
             # skip device transfer for the first dataloader or anything you wish

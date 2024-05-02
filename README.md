@@ -7,6 +7,7 @@
   In the conda env:  `pip install -e . `
 ### Requirements
 - openeo_mmdc
+- mt_ssl:
 ## Pre-training
 ## Downstream task
 ### Change Detection
