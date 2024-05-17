@@ -12,6 +12,7 @@ from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.temp_proj import TemporalProjector
 from mmmv_ssl.model.transformer import TransformerBlock, TransformerBlockConfig
 from mmmv_ssl.module.alise_mm import AliseMM
+from mmmv_ssl.module.dataclass import OutMMAliseF
 
 
 def generate_input_mod(b, t, c, h, w):
@@ -25,9 +26,13 @@ def generate_input_mod(b, t, c, h, w):
 
 
 def generate_mm_input(b, t1, t2, h, w):
-    b_s1 = generate_input_mod(b, t1, 3, h, w)
-    b_s2 = generate_input_mod(b, t2, 10, h, w)
-    return BatchMMSits(sits2=b_s2, sits1=b_s1)
+    b_s1_a = generate_input_mod(b, t1, 3, h, w)
+    b_s1_b = generate_input_mod(b, t1, 3, h, w)
+    b_s2_a = generate_input_mod(b, t2, 10, h, w)
+    b_s2_b = generate_input_mod(b, t2, 10, h, w)
+    return BatchMMSits(
+        sits2a=b_s2_a, sits2b=b_s2_b, sits1a=b_s1_a, sits1b=b_s1_b
+    )
 
 
 def test_forward():
@@ -70,14 +75,16 @@ def test_forward():
         query_s1s2_d=query_s1s2,
         pe_channels=pe_c,
     )
-    input_batch = generate_mm_input(2, 5, 5, 64, 64)
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
     out = module.forward(input_batch)
-    assert out.repr_s1.shape == out.repr_s2.shape
-    assert out.repr_s1.shape[1] == nq
-    assert out.repr_s1.shape[0] == 2
-    assert out.repr_s1.shape[2] == d_repr
-    assert out.pred_s1.shape == (2, 5, 3, 64, 64)
-    assert out.pred_s2.shape == (2, 5, 10, 64, 64)
+    assert out.repr.s1a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s2b.shape
+    assert out.repr.s1a.shape == (1, nq, d_repr, 64, 64)
+    assert out.rec.s1a.same_mod.shape == out.rec.s1a.same_mod.shape
+    assert out.rec.s1b.same_mod.shape == (1, 2, 3, 64, 64)
+    assert out.rec.s2a.same_mod.shape == (1, 2, 10, 64, 64)
+    assert out.rec.s2b.same_mod.shape == out.rec.s2b.other_mod.shape
 
 
 def test_forward_with_deep_decoder():
@@ -124,19 +131,21 @@ def test_forward_with_deep_decoder():
         query_s1s2_d=query_s1s2,
         pe_channels=pe_c,
     )
-    input_batch = generate_mm_input(2, 5, 5, 64, 64)
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
     out = module.forward(input_batch)
-    assert out.repr_s1.shape == out.repr_s2.shape
-    assert out.repr_s1.shape[1] == nq
-    assert out.repr_s1.shape[0] == 2
-    assert out.repr_s1.shape[2] == d_repr
-    assert out.pred_s1.shape == (2, 5, 3, 64, 64)
-    assert out.pred_s2.shape == (2, 5, 10, 64, 64)
+    assert out.repr.s1a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s2b.shape
+    assert out.repr.s1a.shape == (1, nq, d_repr, 64, 64)
+    assert out.rec.s1a.same_mod.shape == out.rec.s1a.same_mod.shape
+    assert out.rec.s1b.same_mod.shape == (1, 2, 3, 64, 64)
+    assert out.rec.s2a.same_mod.shape == (1, 2, 10, 64, 64)
+    assert out.rec.s2b.same_mod.shape == out.rec.s2b.other_mod.shape
 
 
 def test_instantiate():
     nq = 10
-    d_repr = 16
+    d_repr = 4
     module_config = DictConfig(open_yaml("../config/model/alise_mm.yaml"))
     train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
     mm_channels = MMChannels(s1_channels=3, s2_channels=10)
@@ -147,19 +156,21 @@ def test_instantiate():
         input_channels=mm_channels,
         d_repr=d_repr,
     )
-    input_batch = generate_mm_input(2, 5, 5, 64, 64)
-    out = module.forward(input_batch)
-    assert out.repr_s1.shape == out.repr_s2.shape
-    assert out.repr_s1.shape[1] == nq
-    assert out.repr_s1.shape[0] == 2
-    assert out.repr_s1.shape[2] == d_repr
-    assert out.pred_s1.shape == (2, 5, 3, 64, 64)
-    assert out.pred_s2.shape == (2, 5, 10, 64, 64)
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
+    out: OutMMAliseF = module.forward(input_batch)
+    assert out.repr.s1a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s2b.shape
+    assert out.repr.s1a.shape == (1, nq, d_repr, 64, 64)
+    assert out.rec.s1a.same_mod.shape == out.rec.s1a.same_mod.shape
+    assert out.rec.s1b.same_mod.shape == (1, 2, 3, 64, 64)
+    assert out.rec.s2a.same_mod.shape == (1, 2, 10, 64, 64)
+    assert out.rec.s2b.same_mod.shape == out.rec.s2b.other_mod.shape
 
 
 def test_instantiate_deepdeocder():
     nq = 10
-    d_repr = 16
+    d_repr = 8
     module_config = DictConfig(
         open_yaml("../config/model/alise_mm_deepdecod.yaml")
     )
@@ -172,11 +183,13 @@ def test_instantiate_deepdeocder():
         input_channels=mm_channels,
         d_repr=d_repr,
     )
-    input_batch = generate_mm_input(2, 5, 5, 64, 64)
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
     out = module.forward(input_batch)
-    assert out.repr_s1.shape == out.repr_s2.shape
-    assert out.repr_s1.shape[1] == nq
-    assert out.repr_s1.shape[0] == 2
-    assert out.repr_s1.shape[2] == d_repr
-    assert out.pred_s1.shape == (2, 5, 3, 64, 64)
-    assert out.pred_s2.shape == (2, 5, 10, 64, 64)
+    assert out.repr.s1a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s1b.shape
+    assert out.repr.s2a.shape == out.repr.s2b.shape
+    assert out.repr.s1a.shape == (1, nq, d_repr, 64, 64)
+    assert out.rec.s1a.same_mod.shape == out.rec.s1a.same_mod.shape
+    assert out.rec.s1b.same_mod.shape == (1, 2, 3, 64, 64)
+    assert out.rec.s2a.same_mod.shape == (1, 2, 10, 64, 64)
+    assert out.rec.s2b.same_mod.shape == out.rec.s2b.other_mod.shape

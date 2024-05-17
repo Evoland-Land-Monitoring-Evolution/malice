@@ -4,8 +4,28 @@ from torch import Tensor
 
 
 @dataclass
+class LatRepr:
+    s1a: Tensor
+    s1b: Tensor
+    s2a: Tensor
+    s2b: Tensor
+
+
+@dataclass
+class RecWithOrigin:
+    same_mod: Tensor
+    other_mod: Tensor
+
+
+@dataclass
+class Rec:
+    s1a: RecWithOrigin
+    s1b: RecWithOrigin
+    s2a: RecWithOrigin
+    s2b: RecWithOrigin
+
+
+@dataclass
 class OutMMAliseF:
-    repr_s1: Tensor
-    repr_s2: Tensor
-    pred_s1: Tensor
-    pred_s2: Tensor
+    repr: LatRepr
+    rec: Rec

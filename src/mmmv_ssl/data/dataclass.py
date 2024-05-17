@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import torch
 import torch.nn.functional as F
-from einops import rearrange
 from openeo_mmdc.dataset.padding import apply_padding
 from torch import Tensor
 
@@ -16,16 +15,16 @@ class SITSOneMod:
     mask: Tensor | None = None
 
     def apply_padding(self, max_len: int, allow_padd=True):
-        sits = rearrange(self.sits, "c t h w -> t c h w")
-        t = sits.shape[0]
+        # sits = rearrange(self.sits, "t c h w -> t c h w")
+        t = self.sits.shape[0]
         sits, doy, padd_index = apply_padding(
-            allow_padd, max_len, t, sits, self.input_doy
+            allow_padd, max_len, t, self.sits, self.input_doy
         )
         padd_doy = (0, max_len - t)
         true_doy = F.pad(self.true_doy, padd_doy)
-        if self.padd_mask is not None:
+        if self.mask is not None:
             padd_tensor = (0, 0, 0, 0, 0, 0, 0, max_len - t)
-            mask = F.pad(self.padd_mask, padd_tensor)
+            mask = F.pad(self.mask, padd_tensor)
         else:
             mask = None
         return SITSOneMod(
@@ -39,8 +38,10 @@ class SITSOneMod:
 
 @dataclass
 class MMSITS:
-    sits1: SITSOneMod
-    sits2: SITSOneMod
+    sits1a: SITSOneMod
+    sits1b: SITSOneMod
+    sits2a: SITSOneMod
+    sits2b: SITSOneMod
 
 
 class BatchOneMod:
@@ -95,16 +96,23 @@ class BatchOneMod:
 
 @dataclass
 class BatchMMSits:
-    sits1: BatchOneMod
-    sits2: BatchOneMod
+    sits1a: BatchOneMod
+    sits1b: BatchOneMod
+    sits2a: BatchOneMod
+    sits2b: BatchOneMod
 
     def pin_memory(self):
-        self.sits1 = self.sits1.pin_memory()
-        self.sits2 = self.sits2.pin_memory()
+        self.sits1a = self.sits1a.pin_memory()
+        self.sits2a = self.sits2a.pin_memory()
+        self.sits1b = self.sits1b.pin_memory()
+        self.sits2b = self.sits2b.pin_memory()
+        return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
-        self.sits1 = self.sits1.to(device=device, dtype=dtype)
-        self.sits2 = self.sits2.to(device=device, dtype=dtype)
+        self.sits1a = self.sits1a.to(device=device, dtype=dtype)
+        self.sits1b = self.sits1a.to(device=device, dtype=dtype)
+        self.sits2a = self.sits2a.to(device=device, dtype=dtype)
+        self.sits2b = self.sits2a.to(device=device, dtype=dtype)
         return self
 
 
@@ -112,3 +120,24 @@ class BatchMMSits:
 class MMChannels:
     s1_channels: int = 3
     s2_channels: int = 10
+
+
+def merge2views(viewa: BatchOneMod, viewb: BatchOneMod) -> BatchOneMod:
+    sits = torch.cat([viewa.sits, viewb.sits])
+    input_doy = torch.cat([viewa.input_doy, viewb.input_doy])
+    if viewa.true_doy is not None:
+        true_doy = torch.cat([viewa.true_doy, viewb.true_doy])
+    else:
+        true_doy = None
+    if viewa.mask is not None:
+        mask = torch.cat([viewa.mask, viewb.mask])
+    else:
+        mask = None
+    padd_mask = torch.cat([viewa.padd_index, viewb.padd_index])
+    return BatchOneMod(
+        sits=sits,
+        input_doy=input_doy,
+        true_doy=true_doy,
+        padd_index=padd_mask,
+        mask=mask,
+    )

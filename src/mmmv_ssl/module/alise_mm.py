@@ -11,13 +11,13 @@ from mt_ssl.module.template import TemplateModule
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
 
-from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels
+from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels, merge2views
 from mmmv_ssl.model.dataclass import OutTempProjForward
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.query_utils import TempMetaQuery
 from mmmv_ssl.model.temp_proj import TemporalProjector
-from mmmv_ssl.module.dataclass import OutMMAliseF
+from mmmv_ssl.module.dataclass import LatRepr, OutMMAliseF, Rec, RecWithOrigin
 
 my_logger = logging.getLogger(__name__)
 
@@ -92,8 +92,8 @@ class AliseMM(TemplateModule, LightningModule):
         assert (
             query_s1s2_d + pe_channels
         ) % self.meta_decodeur.num_heads == 0, (
-            f"decoder query shape : {query_s1s2_d+pe_channels} decodeur heads"
-            f" {self.meta_decodeur.num_heads}"
+            f"decoder query shape : {query_s1s2_d + pe_channels} decodeur"
+            f" heads {self.meta_decodeur.num_heads}"
         )
         self.q_decod_s1 = nn.Parameter(
             torch.zeros(query_s1s2_d)
@@ -111,61 +111,145 @@ class AliseMM(TemplateModule, LightningModule):
         )  # TODO check that
 
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
-        out_s1 = self.encodeur_s1.forward_keep_input_dim(batch.sits1)
-        out_s2 = self.encodeur_s2.forward_keep_input_dim(batch.sits2)
+        s1 = merge2views(batch.sits1a, batch.sits1b)
+        s2 = merge2views(batch.sits2a, batch.sits2b)
+        out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
+        out_s2 = self.encodeur_s2.forward_keep_input_dim(s2)
         # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
         embedding: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
-            padd_s1=batch.sits1.padd_index,
+            padd_s1=s1.padd_index,
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
-            padd_s2=batch.sits2.padd_index,
+            padd_s2=s2.padd_index,
         )
-        query_s2 = repeat(
-            self.query_builder(self.q_decod_s2, batch.sits2.input_doy),
+        query_s2a = repeat(
+            self.query_builder(self.q_decod_s2, batch.sits2a.input_doy),
             "b t c -> b t c h w",
-            h=batch.sits2.h,
-            w=batch.sits2.w,
-        )  # used to decode s2 dates from s1 embeddings
-        my_logger.debug(f"query decodeur s2 {query_s2.shape}")
-        query_s1 = repeat(
-            self.query_builder(self.q_decod_s1, batch.sits1.input_doy),
+            h=batch.sits2a.h,
+            w=batch.sits2a.w,
+        )  # used to decode s2a dates from s1a or from s2b
+        query_s2b = repeat(
+            self.query_builder(self.q_decod_s2, batch.sits2b.input_doy),
             "b t c -> b t c h w",
-            h=batch.sits1.h,
-            w=batch.sits1.w,
-        )  # used to decode s1 dates from s2 embeddings
+            h=batch.sits2a.h,
+            w=batch.sits2a.w,
+        )  # used to decode s2b dates from s1b or from s2a
+        my_logger.debug(f"query decodeur s2 {query_s2b.shape}")
+        query_s1a = repeat(
+            self.query_builder(self.q_decod_s1, batch.sits1a.input_doy),
+            "b t c -> b t c h w",
+            h=batch.sits1a.h,
+            w=batch.sits1a.w,
+        )  # used to decode s1a dates from s2a and s1b embeddings
+        query_s1b = repeat(
+            self.query_builder(self.q_decod_s1, batch.sits1b.input_doy),
+            "b t c -> b t c h w",
+            h=batch.sits1b.h,
+            w=batch.sits1b.w,
+        )  # used to decode s1b dates from s2b and s1a embeddings
+
         mm_queries = torch.cat(
             [
                 rearrange(
-                    query_s1,
+                    query_s2b,
+                    "b t (nh c) h w ->nh (b h w) t c",
+                    nh=self.meta_decodeur.num_heads,
+                ),
+                rearrange(
+                    query_s1a,
                     "b t (nh c )h w -> nh (b h w) t c",
                     nh=self.meta_decodeur.num_heads,
                 ),
                 rearrange(
-                    query_s2,
+                    query_s2a,
+                    "b t (nh c) h w ->nh (b h w) t c",
+                    nh=self.meta_decodeur.num_heads,
+                ),
+                rearrange(
+                    query_s1b,
+                    "b t (nh c )h w -> nh (b h w) t c",
+                    nh=self.meta_decodeur.num_heads,
+                ),
+                rearrange(
+                    query_s1b,
+                    "b t (nh c )h w -> nh (b h w) t c",
+                    nh=self.meta_decodeur.num_heads,
+                ),
+                rearrange(
+                    query_s2a,
+                    "b t (nh c) h w ->nh (b h w) t c",
+                    nh=self.meta_decodeur.num_heads,
+                ),
+                rearrange(
+                    query_s1a,
+                    "b t (nh c )h w -> nh (b h w) t c",
+                    nh=self.meta_decodeur.num_heads,
+                ),
+                rearrange(
+                    query_s2b,
                     "b t (nh c) h w ->nh (b h w) t c",
                     nh=self.meta_decodeur.num_heads,
                 ),
             ],
             dim=1,
-        )  # concat across batch dimension? each modalities treated independently be decoder
+        )
+        #
+        # mm_queries = torch.cat(
+        #     [
+        #         rearrange(
+        #             query_s1a,
+        #             "b t (nh c )h w -> nh (b h w) t c",
+        #             nh=self.meta_decodeur.num_heads,
+        #         ),
+        #         rearrange(
+        #             query_s1b,
+        #             "b t (nh c )h w -> nh (b h w) t c",
+        #             nh=self.meta_decodeur.num_heads,
+        #         ),
+        #         rearrange(
+        #             query_s2a,
+        #             "b t (nh c) h w ->nh (b h w) t c",
+        #             nh=self.meta_decodeur.num_heads,
+        #         ),
+        #         rearrange(
+        #             query_s2a,
+        #             "b t (nh c) h w ->nh (b h w) t c",
+        #             nh=self.meta_decodeur.num_heads,
+        #         ),
+        #     ],
+        #     dim=1,
+        # )  # concat across batch dimension? each modalities treated independently be decoder
+        embedding_s1 = rearrange(
+            embedding.s1, "(view bhw) t c-> view bhw t c", view=2
+        )
+        embedding_s2 = rearrange(
+            embedding.s2, "(view bhw) t c-> view bhw t c", view=2
+        )
         mm_embedding = torch.cat(
-            [embedding.s2, embedding.s1], dim=0
-        )  # 2(b h w) t d
+            [
+                embedding_s2[0, ...],
+                embedding_s2[0, ...],
+                embedding_s2[1, ...],
+                embedding_s2[1, ...],
+                embedding_s1[0, ...],
+                embedding_s1[0, ...],
+                embedding_s1[1, ...],
+                embedding_s1[1, ...],
+            ],
+            dim=0,
+        )  # should be s2a,s2a,s2b,s2b,s1a,s1a,s1b,s1b
         my_logger.debug(f"queries{mm_queries.shape}")
+        h, w = batch.sits2a.h, batch.sits2a.w
         padd_mm = torch.cat(
             [
-                repeat(
-                    batch.sits1.padd_index,
-                    "b t -> (b h w) t ",
-                    h=batch.sits1.h,
-                    w=batch.sits1.w,
-                ),
-                repeat(
-                    batch.sits2.padd_index,
-                    "b t -> (b h w) t ",
-                    h=batch.sits2.h,
-                    w=batch.sits2.w,
-                ),
+                repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
             ],
             dim=0,
         )  # 2(b h w) t
@@ -173,29 +257,54 @@ class AliseMM(TemplateModule, LightningModule):
         out = self.meta_decodeur.forward(
             mm_sits=mm_embedding, padd_mm=padd_mm, mm_queries=mm_queries
         )  # (2bhw) t d
+
         out = rearrange(
             out,
             "(mod b h w) t c-> mod b t h w c",
-            mod=2,
-            b=batch.sits1.b,
-            h=batch.sits1.h,
-            w=batch.sits1.w,
+            mod=8,
+            b=batch.sits1a.b,
+            h=batch.sits1a.h,
+            w=batch.sits1a.w,
         )
-        s1_rec = self.proj_s1(out[0, ...])
-        s2_rec = self.proj_s2(out[1, ...])
-        return OutMMAliseF(
-            repr_s1=rearrange(
-                embedding.s1,
-                "(b h w) t c -> b t c h w",
-                h=batch.sits1.h,
-                w=batch.sits1.w,
-            ),
-            repr_s2=rearrange(
-                embedding.s2,
-                "(b h w) t c -> b t c h w",
-                h=batch.sits2.h,
-                w=batch.sits2.w,
-            ),
-            pred_s1=rearrange(s1_rec, "b t h w c -> b t c h w"),
-            pred_s2=rearrange(s2_rec, "b t h w c -> b t c h w"),
+        s1_rec = self.proj_s1(
+            rearrange(
+                out[[1, 3, 4, 6], ...], "mod b t c h w -> (mod b ) t c h w"
+            )
+        )  #
+        s2_rec = self.proj_s2(
+            rearrange(
+                out[[0, 2, 5, 7], ...], "mod b t c h w -> (mod b) t c h w"
+            )
         )
+        s1_rec = rearrange(s1_rec, "(mod b) t h w c -> mod b t c h w", mod=4)
+        s2_rec = rearrange(s2_rec, "(mod b) t h w c -> mod b t c h w", mod=4)
+        repr = LatRepr(
+            s1a=rearrange(
+                embedding_s1[0, ...], "(b h w) t c-> b t c h w", h=h, w=w
+            ),
+            s1b=rearrange(
+                embedding_s1[1, ...], "(b h w) t c -> b t c h w", h=h, w=w
+            ),
+            s2a=rearrange(
+                embedding_s2[0, ...], "(b h w) t c -> b t c h w", h=h, w=w
+            ),
+            s2b=rearrange(
+                embedding_s2[1, ...], "(b h w) t c -> b t c h w", h=h, w=w
+            ),
+        )
+        rec = Rec(
+            s1a=RecWithOrigin(
+                same_mod=s1_rec[3, ...], other_mod=s1_rec[0, ...]
+            ),
+            s1b=RecWithOrigin(
+                same_mod=s1_rec[2, ...], other_mod=s1_rec[1, ...]
+            ),
+            s2a=RecWithOrigin(
+                same_mod=s2_rec[1, ...], other_mod=s2_rec[2, ...]
+            ),
+            s2b=RecWithOrigin(
+                same_mod=s2_rec[0, ...], other_mod=s2_rec[3, ...]
+            ),
+        )
+
+        return OutMMAliseF(repr=repr, rec=rec)

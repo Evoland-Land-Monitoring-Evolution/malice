@@ -11,9 +11,13 @@ from mmmv_ssl.data.dataclass import (
 
 
 def collate_fn_mm_dataset(batch: Iterable[MMSITS]) -> BatchMMSits:
-    sits1 = collate_one_mode([b.sits1 for b in batch])
-    sits2 = collate_one_mode([b.sits2 for b in batch])
-    return BatchMMSits(sits1=sits1, sits2=sits2)
+    sits1a = collate_one_mode([b.sits1a for b in batch])
+    sits1b = collate_one_mode([b.sits1b for b in batch])
+    sits2a = collate_one_mode([b.sits2a for b in batch])
+    sits2b = collate_one_mode([b.sits2b for b in batch])
+    return BatchMMSits(
+        sits1a=sits1a, sits1b=sits1b, sits2a=sits2a, sits2b=sits2b
+    )
 
 
 def collate_one_mode(batch: Iterable[SITSOneMod]) -> BatchOneMod:

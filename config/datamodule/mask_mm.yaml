@@ -1,0 +1,11 @@
+datamodule:
+  _target_: mmmv_ssl.data.datamodule.mm_datamodule.MMMaskDataModule
+  num_workers: 4
+  max_len: 60
+  batch_size: 2
+  crop_size: 64
+  s2_band: null
+  path_dir_csv: null
+  modalities: [s2,s1_asc]
+  prefetch_factor: 2
+  non_blocking: true

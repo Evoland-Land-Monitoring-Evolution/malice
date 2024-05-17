@@ -1,0 +1,18 @@
+train:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
+  directory: null
+  crop_type: Random
+  s2_tile: []
+  modalities: [s2,s1_asc]
+val:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
+  directory: null
+  crop_type: Random
+  s2_tile: []
+  modalities: [s2,s1_asc]
+test:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
+  directory: null
+  crop_type: Random
+  s2_tile: []
+  modalities: [s2,s1_asc]
