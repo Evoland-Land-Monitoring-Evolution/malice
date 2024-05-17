@@ -305,7 +305,11 @@ class AliseMM(TemplateModule, LightningModule):
         tot_rec_loss = self.compute_rec_loss(batch=batch, rec=out_model.rec)
         inv_loss = self.invariance_loss(out_model.repr)
         global_loss = GlobalInvRecMMLoss(
-            total_rec_loss=tot_rec_loss, inv_loss=inv_loss
+            total_rec_loss=tot_rec_loss,
+            inv_loss=inv_loss,
+            w_rec=self.w_rec,
+            w_inv=self.w_inv,
+            w_crossrec=self.w_crossrec,
         )
         return OutMMAliseSharedStep(loss=global_loss, out_forward=out_model)
 
@@ -318,9 +322,7 @@ class AliseMM(TemplateModule, LightningModule):
             batch_size=self.bs,
             prog_bar=True,
         )
-        return out_shared_step.loss.compute(
-            w_inv=self.w_inv, w_rec=self.w_rec, w_crossrec=self.w_crossrec
-        )
+        return out_shared_step.loss.compute()
 
     def validation_step(self, batch: BatchMMSits, batch_idx: int):
         out_shared_step = self.shared_step(batch)

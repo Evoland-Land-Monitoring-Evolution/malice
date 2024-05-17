@@ -1,0 +1,37 @@
+s1a_image:
+  _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+  n_images: 10
+  opt: s1a
+
+s1b_image:
+  _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+  n_images: 10
+  opt: s1b
+
+s2a_image:
+  _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+  n_images: 10
+  opt: s2a
+
+s2b_image:
+  _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+  n_images: 10
+  opt: s2b
+
+learningrate:
+  _target_: lightning.pytorch.callbacks.LearningRateMonitor
+
+stopping:
+  _target_: lightning.pytorch.callbacks.EarlyStopping
+  monitor: val_total_loss
+  mode: min
+  patience: 20
+
+checkpoint:
+  _target_: lightning.pytorch.callbacks.ModelCheckpoint
+  monitor: val_total_loss
+  verbose: true
+  save_top_k: 2
+  save_last: true
+  auto_insert_metric_name: true
+  filename: "metric-{epoch:02d}-{val_total_loss:.4f}"

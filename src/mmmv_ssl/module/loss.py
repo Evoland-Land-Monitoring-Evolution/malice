@@ -47,6 +47,9 @@ class TotalRecLoss:
 class GlobalInvRecMMLoss:
     total_rec_loss: TotalRecLoss
     inv_loss: Tensor | None = None
+    w_inv: float = 1
+    w_rec: float = 1
+    w_crossrec: float = 1
 
     def to_dict(self, suffix="train"):
         if self.inv_loss is not None:
@@ -55,12 +58,16 @@ class GlobalInvRecMMLoss:
             inv_loss = 0
         d = {f"{suffix}_invloss": inv_loss}
         d.update(self.total_rec_loss.to_dict(suffix=suffix))
+        total = self.compute()
+        d.update({f"{suffix}_total_loss": total.item()})
         return d
 
-    def compute(self, w_inv, w_rec, w_crossrec):
+    def compute(self):
         if self.inv_loss is not None:
-            loss = w_inv * self.inv_loss
+            loss = self.w_inv * self.inv_loss
         else:
             loss = 0
-        loss += w_rec * self.total_rec_loss.compute(w_cross_rec=w_crossrec)
+        loss += self.w_rec * self.total_rec_loss.compute(
+            w_cross_rec=self.w_crossrec
+        )
         return loss
