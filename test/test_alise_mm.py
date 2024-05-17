@@ -21,7 +21,7 @@ def generate_input_mod(b, t, c, h, w):
         input_doy=repeat(torch.arange(t), "t -> b t", b=b),
         true_doy=repeat(torch.arange(t), "t -> b t", b=b),
         padd_index=torch.zeros(b, t),
-        mask=torch.zeros(b, t),
+        mask=torch.ones(b, t, c, h, w),
     )
 
 
@@ -193,3 +193,22 @@ def test_instantiate_deepdeocder():
     assert out.rec.s1b.same_mod.shape == (1, 2, 3, 64, 64)
     assert out.rec.s2a.same_mod.shape == (1, 2, 10, 64, 64)
     assert out.rec.s2b.same_mod.shape == out.rec.s2b.other_mod.shape
+
+
+def test_instantiate_deepdeocder_training_step():
+    d_repr = 8
+    module_config = DictConfig(
+        open_yaml("../config/model/alise_mm_deepdecod.yaml")
+    )
+    train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
+    mm_channels = MMChannels(s1_channels=3, s2_channels=10)
+    module = instantiate(
+        module_config,
+        train_config=train_config,
+        _recursive_=False,
+        input_channels=mm_channels,
+        d_repr=d_repr,
+    )
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
+    out_module = module.shared_step(input_batch)
+    print(out_module.loss.to_dict())

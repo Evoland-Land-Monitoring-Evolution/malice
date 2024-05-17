@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 from torch import Tensor
 
+from mmmv_ssl.module.loss import GlobalInvRecMMLoss
+
 
 @dataclass
 class LatRepr:
@@ -29,3 +31,9 @@ class Rec:
 class OutMMAliseF:
     repr: LatRepr
     rec: Rec
+
+
+@dataclass
+class OutMMAliseSharedStep:
+    loss: GlobalInvRecMMLoss
+    out_forward: OutMMAliseF

@@ -7,6 +7,7 @@ from einops import rearrange, repeat
 from hydra.utils import instantiate
 from lightning import LightningModule
 from mt_ssl.model.ubarn_repr_encoder import UBarnReprEncoder
+from mt_ssl.module.loss import create_mask_loss
 from mt_ssl.module.template import TemplateModule
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
@@ -17,7 +18,14 @@ from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.query_utils import TempMetaQuery
 from mmmv_ssl.model.temp_proj import TemporalProjector
-from mmmv_ssl.module.dataclass import LatRepr, OutMMAliseF, Rec, RecWithOrigin
+from mmmv_ssl.module.dataclass import (
+    LatRepr,
+    OutMMAliseF,
+    OutMMAliseSharedStep,
+    Rec,
+    RecWithOrigin,
+)
+from mmmv_ssl.module.loss import GlobalInvRecMMLoss, OneViewRecL, TotalRecLoss
 
 my_logger = logging.getLogger(__name__)
 
@@ -36,6 +44,9 @@ class AliseMM(TemplateModule, LightningModule):
         d_repr: int = 64,
         query_s1s2_d: int = 64,
         pe_channels: int = 64,
+        w_inv=1,
+        w_rec=1,
+        w_crossrec=0.9,
     ):
         super().__init__(train_config)
 
@@ -109,6 +120,11 @@ class AliseMM(TemplateModule, LightningModule):
         nn.init.normal_(
             self.q_decod_s2, mean=0, std=np.sqrt(2.0 / (query_s1s2_d))
         )  # TODO check that
+        self.inv_loss = torch.nn.MSELoss()
+        self.rec_loss = torch.nn.MSELoss()
+        self.w_inv = w_inv
+        self.w_rec = w_rec
+        self.w_crossrec = w_crossrec
 
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         s1 = merge2views(batch.sits1a, batch.sits1b)
@@ -193,32 +209,6 @@ class AliseMM(TemplateModule, LightningModule):
             ],
             dim=1,
         )
-        #
-        # mm_queries = torch.cat(
-        #     [
-        #         rearrange(
-        #             query_s1a,
-        #             "b t (nh c )h w -> nh (b h w) t c",
-        #             nh=self.meta_decodeur.num_heads,
-        #         ),
-        #         rearrange(
-        #             query_s1b,
-        #             "b t (nh c )h w -> nh (b h w) t c",
-        #             nh=self.meta_decodeur.num_heads,
-        #         ),
-        #         rearrange(
-        #             query_s2a,
-        #             "b t (nh c) h w ->nh (b h w) t c",
-        #             nh=self.meta_decodeur.num_heads,
-        #         ),
-        #         rearrange(
-        #             query_s2a,
-        #             "b t (nh c) h w ->nh (b h w) t c",
-        #             nh=self.meta_decodeur.num_heads,
-        #         ),
-        #     ],
-        #     dim=1,
-        # )  # concat across batch dimension? each modalities treated independently be decoder
         embedding_s1 = rearrange(
             embedding.s1, "(view bhw) t c-> view bhw t c", view=2
         )
@@ -308,3 +298,100 @@ class AliseMM(TemplateModule, LightningModule):
         )
 
         return OutMMAliseF(repr=repr, rec=rec)
+
+    def shared_step(self, batch: BatchMMSits) -> OutMMAliseSharedStep:
+        out_model = self.forward(batch)
+        assert isinstance(batch, BatchMMSits)
+        tot_rec_loss = self.compute_rec_loss(batch=batch, rec=out_model.rec)
+        inv_loss = self.invariance_loss(out_model.repr)
+        global_loss = GlobalInvRecMMLoss(
+            total_rec_loss=tot_rec_loss, inv_loss=inv_loss
+        )
+        return OutMMAliseSharedStep(loss=global_loss, out_forward=out_model)
+
+    def training_step(self, batch: BatchMMSits, batch_idx: int):
+        out_shared_step = self.shared_step(batch)
+        self.log_dict(
+            out_shared_step.loss.to_dict(suffix="train"),
+            on_epoch=True,
+            on_step=True,
+            batch_size=self.bs,
+            prog_bar=True,
+        )
+        return out_shared_step.loss.compute(
+            w_inv=self.w_inv, w_rec=self.w_rec, w_crossrec=self.w_crossrec
+        )
+
+    def validation_step(self, batch: BatchMMSits, batch_idx: int):
+        out_shared_step = self.shared_step(batch)
+        self.log_dict(
+            out_shared_step.loss.to_dict(suffix="val"),
+            on_epoch=True,
+            on_step=True,
+            batch_size=self.bs,
+            prog_bar=True,
+        )
+        return out_shared_step.out_forward
+
+    def compute_rec_loss(self, batch: BatchMMSits, rec: Rec) -> TotalRecLoss:
+        assert isinstance(batch, BatchMMSits), f"batch is {batch}"
+        valid_mask1a = create_mask_loss(
+            batch.sits1a.padd_index, batch.sits1a.mask
+        )  # in .mask True means pixel valid
+        valid_mask1b = create_mask_loss(
+            batch.sits1b.padd_index, batch.sits1b.mask
+        )  # in .mask True means pixel valid
+        valid_mask2a = create_mask_loss(
+            batch.sits2a.padd_index, batch.sits2a.mask
+        )  # in .mask True means pixel valid
+        valid_mask2b = create_mask_loss(
+            batch.sits2b.padd_index, batch.sits2b.mask
+        )  # in .mask True means pixel valid
+        s1a_rec_loss = OneViewRecL(
+            monom_rec=self.rec_loss(
+                rec.s1a.same_mod[valid_mask1a], batch.sits1a.sits[valid_mask1a]
+            ),
+            crossm_rec=self.rec_loss(
+                rec.s1a.other_mod[valid_mask1a],
+                batch.sits1a.sits[valid_mask1a],
+            ),
+        )
+        s1b_rec_loss = OneViewRecL(
+            monom_rec=self.rec_loss(
+                rec.s1b.same_mod[valid_mask1b], batch.sits1b.sits[valid_mask1b]
+            ),
+            crossm_rec=self.rec_loss(
+                rec.s1b.other_mod[valid_mask1b],
+                batch.sits1b.sits[valid_mask1b],
+            ),
+        )
+        s2a_rec_loss = OneViewRecL(
+            monom_rec=self.rec_loss(
+                rec.s2a.same_mod[valid_mask2a], batch.sits2a.sits[valid_mask2a]
+            ),
+            crossm_rec=self.rec_loss(
+                rec.s2a.other_mod[valid_mask2a],
+                batch.sits2a.sits[valid_mask2a],
+            ),
+        )
+        s2b_rec_loss = OneViewRecL(
+            monom_rec=self.rec_loss(
+                rec.s2b.same_mod[valid_mask2b], batch.sits2b.sits[valid_mask2b]
+            ),
+            crossm_rec=self.rec_loss(
+                rec.s2b.other_mod[valid_mask2b],
+                batch.sits2b.sits[valid_mask2b],
+            ),
+        )
+
+        return TotalRecLoss(
+            s1_a=s1a_rec_loss,
+            s1_b=s1b_rec_loss,
+            s2_a=s2a_rec_loss,
+            s2_b=s2b_rec_loss,
+        )
+
+    def invariance_loss(self, embeddings: LatRepr):
+        creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
+        crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
+        return 1 / 2 * (crecb + creca)
