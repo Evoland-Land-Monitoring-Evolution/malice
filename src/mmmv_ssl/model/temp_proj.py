@@ -47,8 +47,9 @@ class CrossAttn(nn.Module):
             my_logger.debug(f"Pad mask shape {pad_mask.shape}")
         v = torch.stack(v.split(v.shape[-1] // n_head, dim=-1))
         v = rearrange(v, "head b t c -> b head t c")
-        my_logger.debug(f"value {v.shape}")
-        my_logger.debug(f"query{q.shape}")
+        print(f"value {v.shape}")
+        print(f"query{q.shape}")
+        print(f"key {k.shape}")
         # q=q.to(v)
         output = torch.nn.functional.scaled_dot_product_attention(
             query=q, key=k, value=v, attn_mask=pad_mask
@@ -91,6 +92,6 @@ class TemporalProjector(nn.Module):
         :return:
         :rtype:
         """
-        align_s1 = self.ca_s1(v=sits_s1, q=self.Q, pad_mask=padd_s1)  # b nq dv
-        align_s2 = self.ca_s2(v=sits_s2, q=self.Q, pad_mask=padd_s2)  # b nq dv
+        align_s1 = self.ca_s1(v=sits_s1, q=self.Q, pad_mask=None)  # b nq dv
+        align_s2 = self.ca_s2(v=sits_s2, q=self.Q, pad_mask=None)  # b nq dv
         return OutTempProjForward(s1=align_s1, s2=align_s2)

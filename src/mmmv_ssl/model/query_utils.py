@@ -31,5 +31,5 @@ class TempMetaQuery(nn.Module):
 
         """
         pe = self.pe_encoding(doy)  # b t,c
-        query = repeat(q, "c -> b t c", b=pe.shape[0], t=pe.shape[1])
+        query = repeat(q, " c -> b t c", b=pe.shape[0], t=pe.shape[1])
         return torch.cat([pe, query], dim=-1)
