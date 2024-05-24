@@ -11,11 +11,13 @@ s1b_image:
 s2a_image:
   _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
   n_images: 10
+  value_range: [100,3000]
   opt: s2a
 
 s2b_image:
   _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
   n_images: 10
+  value_range: [100,3000]
   opt: s2b
 
 learningrate:

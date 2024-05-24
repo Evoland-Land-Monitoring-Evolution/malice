@@ -15,9 +15,8 @@ class OneViewRecL:
         }
 
     def compute(self, w_cross_rec) -> Tensor:
-        return (
-            1 - w_cross_rec
-        ) * self.monom_rec + w_cross_rec * self.crossm_rec
+        return (1 -
+                w_cross_rec) * self.monom_rec + w_cross_rec * self.crossm_rec
 
 
 @dataclass
@@ -40,7 +39,7 @@ class TotalRecLoss:
         loss += self.s2_b.compute(w_cross_rec)
         loss += self.s1_a.compute(w_cross_rec)
         loss += self.s1_b.compute(w_cross_rec)
-        return loss
+        return loss / 8
 
 
 @dataclass
@@ -68,6 +67,5 @@ class GlobalInvRecMMLoss:
         else:
             loss = 0
         loss += self.w_rec * self.total_rec_loss.compute(
-            w_cross_rec=self.w_crossrec
-        )
+            w_cross_rec=self.w_crossrec)
         return loss

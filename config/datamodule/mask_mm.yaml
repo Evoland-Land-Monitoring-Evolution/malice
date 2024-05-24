@@ -1,11 +1,10 @@
 datamodule:
   _target_: mmmv_ssl.data.datamodule.mm_datamodule.MMMaskDataModule
-  num_workers: 4
-  max_len: 60
+  num_workers: 2
+  max_len: 120
   batch_size: 2
   crop_size: 64
   s2_band: null
-  path_dir_csv: null
-  modalities: [s2,s1_asc]
+  path_dir_csv: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3
   prefetch_factor: 2
-  non_blocking: true
+

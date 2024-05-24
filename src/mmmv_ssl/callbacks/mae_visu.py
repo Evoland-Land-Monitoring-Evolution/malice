@@ -16,14 +16,15 @@ from mmmv_ssl.module.dataclass import OutMMAliseF
 
 
 class ImageCallbacks(Callback):
+
     def __init__(
-        self,
-        n_images,
-        plot_bands=None,
-        normalize=False,
-        value_range=(100, 3000),
-        q=0.05,
-        batch_max: int = 10,
+            self,
+            n_images,
+            plot_bands=None,
+            normalize=False,
+            value_range=(100, 3000),
+            q=0.05,
+            batch_max: int = 10,
     ):
         super().__init__()
         if plot_bands is None:
@@ -79,6 +80,7 @@ class ImageCallbacks(Callback):
 
 
 class MAECrossRecClb(ImageCallbacks):
+
     def __init__(
         self,
         n_images,
@@ -89,25 +91,24 @@ class MAECrossRecClb(ImageCallbacks):
         batch_max: int = 10,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
-        super().__init__(
-            n_images, plot_bands, normalize, value_range, q, batch_max
-        )
+        super().__init__(n_images, plot_bands, normalize, value_range, q,
+                         batch_max)
         self.opt = opt
 
     def on_validation_batch_end(
         self,
         trainer: Trainer | Iterable[Trainer],
         pl_module: AliseMM,
-        outputs: tuple[dict, OutMMAliseF],
+        outputs: OutMMAliseF,
         batch: BatchMMSits,
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        out_model = outputs[1]
 
-        images_bf = self.show_reconstructions(
-            out_model, pl_module.stats, opt=self.opt
-        )
+        images_bf = self.show_reconstructions(outputs,
+                                              tuple_stats=pl_module.stats,
+                                              opt=self.opt,
+                                              batch=batch)
         final_grid_bf = self.make_grid(images_bf)
         self.load_grid_logger(final_grid_bf, trainer, description=self.opt)
 
@@ -136,37 +137,42 @@ class MAECrossRecClb(ImageCallbacks):
     def show_reconstructions(
         self,
         out_model: OutMMAliseF,
-        stats: Stats,
+        tuple_stats: tuple[Stats] | None,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
         export_doy: bool = False,
         batch: BatchMMSits | None = None,
     ):
-        trg, pred = self.extract_per_view(
-            batch=batch, out_model=out_model, opt=opt
-        )
+        trg, pred = self.extract_per_view(batch=batch,
+                                          out_model=out_model,
+                                          opt=opt)
+        if "s1" in opt:
+            stats = tuple_stats[1]
+        elif "s2" in opt:
+            stats = tuple_stats[0]
+        else:
+            stats = None
         if stats is not None:
             unscale_trg = unscale_data(
                 stats,
-                trg[0, : self.n_images, ...].cpu(),
+                trg[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
             unscale_mnm = unscale_data(
                 stats,
-                pred.same_mod[0, : self.n_images, ...].cpu(),
+                pred.same_mod[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
             unscale_crm = unscale_data(
                 stats,
-                pred.other_mod[0, : self.n_images, ...].cpu(),
+                pred.other_mod[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
         else:
-            unscale_trg = trg[0, : self.n_images, self.plot_bands, ...].cpu()
-            unscale_mnm = pred.same_mod[
-                0, : self.n_images, self.plot_bands, ...
-            ].cpu()
-            unscale_crm = pred.other_mod[
-                0, : self.n_images, self.plot_bands, ...
-            ].cpu()
+            unscale_trg = trg[0, :self.n_images, self.plot_bands, ...].cpu()
+            unscale_mnm = pred.same_mod[0, :self.n_images, self.plot_bands,
+                                        ...].cpu()
+            unscale_crm = pred.other_mod[0, :self.n_images, self.plot_bands,
+                                         ...].cpu()
 
         OutVisu = namedtuple("OutVisu", ["trg", "mnm", "crm"])
+        #torch.save(unscale_trg, "out_visu.pt")
         return OutVisu(unscale_trg, unscale_mnm, unscale_crm)
 
     def make_grid(self, input) -> Tensor:

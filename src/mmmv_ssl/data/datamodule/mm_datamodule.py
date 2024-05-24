@@ -12,7 +12,7 @@ from openeo_mmdc.dataset.to_tensor import load_all_transforms
 from torch.utils.data import DataLoader
 
 from mmmv_ssl.constant.dataset import S2_BAND
-from mmmv_ssl.data.dataclass import BatchMMSits
+from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels
 from mmmv_ssl.data.dataset.collate_fn import collate_fn_mm_dataset
 from mmmv_ssl.data.dataset.pretraining_mm_mask import PretrainingMMMaskDataset
 from mmmv_ssl.data.dataset.pretraining_mm_year_dataset import (
@@ -23,11 +23,10 @@ my_logger = logging.getLogger(__name__)
 
 
 class MMMaskDataModule(pl.LightningDataModule):
+
     def __init__(
         self,
-        train_dataset: DictConfig | ConfigPretrainingMMYearDataset,
-        val_dataset: DictConfig | ConfigPretrainingMMYearDataset,
-        test_dataset: DictConfig | ConfigPretrainingMMYearDataset,
+        config_dataset,
         s2_band: list | None = None,
         batch_size: int = 2,
         crop_size: int = 64,
@@ -38,9 +37,9 @@ class MMMaskDataModule(pl.LightningDataModule):
     ):
         super().__init__()
         self.max_len = max_len
-        self.train_dataset = train_dataset
-        self.val_dataset = val_dataset
-        self.test_dataset = test_dataset
+        self.train_dataset: ConfigPretrainingMMYearDataset | DictConfig = config_dataset.train
+        self.val_dataset = config_dataset.val
+        self.test_dataset = config_dataset.test
         self.num_workers = num_workers
         self.crop_size = crop_size
         if s2_band is None:
@@ -49,9 +48,9 @@ class MMMaskDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.path_dir_csv = path_dir_csv
         self.prefetch_factor = prefetch_factor
-        self.all_transform = load_all_transforms(
-            self.path_dir_csv, modalities=["s1_asc", "s2"]
-        )
+        self.all_transform = load_all_transforms(self.path_dir_csv,
+                                                 modalities=["s1_asc", "s2"])
+        self.num_channels = MMChannels(s2_channels=len(s2_band), s1_channels=3)
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
@@ -111,28 +110,25 @@ class MMMaskDataModule(pl.LightningDataModule):
             collate_fn=collate_fn_mm_dataset,
         )
 
-    def on_after_batch_transfer(
-        self, batch: BatchMMSits, dataloader_idx: int
-    ) -> BatchMMSits:
-        "apply transform on device"
+    def on_after_batch_transfer(self, batch: BatchMMSits,
+                                dataloader_idx: int) -> BatchMMSits:
+        #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
         batch.sits1a.sits = apply_transform_basic(
-            batch.sits1a.sits, transform=self.all_transform.s1_asc.transform
-        )
+            batch.sits1a.sits, transform=self.all_transform.s1_asc.transform)
         batch.sits1b.sits = apply_transform_basic(
-            batch.sits1b.sits, transform=self.all_transform.s1_asc.transform
-        )
-        batch.sits2a.sits = apply_transform_basic(
-            batch.sits2a.sits, transform=self.all_transform.s2.transform
-        )
+            batch.sits1b.sits, transform=self.all_transform.s1_asc.transform)
+        sits2a = apply_transform_basic(
+            batch.sits2a.sits, transform=self.all_transform.s2.transform)
+        #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
         batch.sits2b.sits = apply_transform_basic(
-            batch.sits2b.sits, transform=self.all_transform.s2.transform
-        )
+            batch.sits2b.sits, transform=self.all_transform.s2.transform)
+        batch.sits2a.sits = sits2a
+        #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
+        #print("in datamodule", batch.sits2b.sits[0, 0, 0, ...])
+
         return batch
 
-    def transfer_batch_to_device(
-        self, batch: BatchMMSits, device, dataloader_idx: int
-    ):
-        if dataloader_idx == 0:
-            # skip device transfer for the first dataloader or anything you wish
-            return batch
+    def transfer_batch_to_device(self, batch: BatchMMSits, device,
+                                 dataloader_idx: int):
+
         return batch.to(device=device, dtype=None)

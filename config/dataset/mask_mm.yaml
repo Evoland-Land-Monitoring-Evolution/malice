@@ -1,21 +1,21 @@
 train:
   _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
-  directory: null
+  directory: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3/train
   crop_type: Random
-  s2_tile: []
+  s2_tile: [30TXT,31TDL,31TEN,32TPQ,32TPT,32UMB,32UQD,33TVM,33TYJ,33UXR,34UEC]
   modalities: [s2,s1_asc]
   max_len: 60
 val:
   _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
-  directory: null
+  directory: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3/val
   crop_type: Center
-  s2_tile: []
+  s2_tile: [30TYR, 31TEK, 32TNR, 32UPC, 33TXK, 34UDB]
   modalities: [s2,s1_asc]
   max_len=: 60
 test:
   _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
-  directory: null
+  directory : /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3/val
   crop_type: Center
-  s2_tile: []
+  s2_tile: [30TYR, 31TEK, 32TNR, 32UPC, 33TXK, 34UDB]
   modalities: [s2,s1_asc]
   max_len: 60

@@ -1,7 +1,6 @@
 w_rec: 1
-w_var: 1
 w_inv: 1
-w_cov: 1
+w_crossrec: 0.5
 rec_loss:
   _target_: torch.nn.MSELoss
 
@@ -18,7 +17,7 @@ trainer:
   _target_: lightning.pytorch.Trainer
   log_every_n_steps: 10
   num_nodes: 1
-  devices: 2
+  devices: -1
   accelerator: gpu
   deterministic: false
   enable_model_summary: false
@@ -30,13 +29,11 @@ trainer:
   limit_train_batches: 1.0
   check_val_every_n_epoch: 1
   profiler: simple
-  precision: bf16
-  strategy:
-    _target_: lightning.pytorch.strategies.DDPStrategy
-    find_unused_parameters: true
-batch_size: 2
+  precision: bf16-mixed
+
+batch_size: 1
 return_attns: true
-lr: 0.05
+lr: 0.001
 seed: 1
 
 optimizer:

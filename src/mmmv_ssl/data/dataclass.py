@@ -17,11 +17,13 @@ class SITSOneMod:
     def apply_padding(self, max_len: int, allow_padd=True):
         # sits = rearrange(self.sits, "t c h w -> t c h w")
         t = self.sits.shape[0]
-        sits, doy, padd_index = apply_padding(
-            allow_padd, max_len, t, self.sits, self.input_doy
-        )
+        sits, doy, padd_index = apply_padding(allow_padd, max_len, t,
+                                              self.sits, self.input_doy)
         padd_doy = (0, max_len - t)
-        true_doy = F.pad(self.true_doy, padd_doy)
+        if self.true_doy is not None:
+            true_doy = F.pad(self.true_doy, padd_doy)
+        else:
+            true_doy = None
         if self.mask is not None:
             padd_tensor = (0, 0, 0, 0, 0, 0, 0, max_len - t)
             mask = F.pad(self.mask, padd_tensor)
@@ -45,6 +47,7 @@ class MMSITS:
 
 
 class BatchOneMod:
+
     def __init__(
         self,
         sits: Tensor,
@@ -56,15 +59,13 @@ class BatchOneMod:
         self.true_doy = true_doy
         assert len(sits.shape) == 5, f"Incorrect sits shape {sits.shape}"
         self.sits = sits
-        assert (
-            len(input_doy.shape) == 2
-        ), f"Incorrect doy shape {input_doy.shape}"
+        assert (len(
+            input_doy.shape) == 2), f"Incorrect doy shape {input_doy.shape}"
         self.input_doy = input_doy
         assert input_doy.shape[1] == sits.shape[1]
         if padd_index is not None:
-            assert (
-                len(padd_index.shape) == 2
-            ), f"Incorrect padd_doy {padd_index.shape}"
+            assert (len(padd_index.shape) == 2
+                    ), f"Incorrect padd_doy {padd_index.shape}"
         self.padd_index = padd_index
         self.mask = mask
         self.b = sits.shape[0]
@@ -76,7 +77,8 @@ class BatchOneMod:
     def pin_memory(self):
         self.sits = self.sits.pin_memory()
         self.input_doy = self.input_doy.pin_memory()
-        self.true_doy = self.true_doy.pin_memory()
+        if self.true_doy is not None:
+            self.true_doy = self.true_doy.pin_memory()
         if self.padd_index is not None:
             self.padd_index = self.padd_index.pin_memory()
         if self.mask is not None:
@@ -86,7 +88,8 @@ class BatchOneMod:
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
         self.sits = self.sits.to(device=device, dtype=dtype)
         self.input_doy = self.input_doy.to(device, dtype=dtype)
-        self.true_doy = self.true_doy.to(device, dtype=dtype)
+        if self.true_doy is not None:
+            self.true_doy = self.true_doy.to(device, dtype=dtype)
         if self.padd_index is not None:
             self.padd_index = self.padd_index.to(device=device, dtype=dtype)
         if self.mask is not None:
