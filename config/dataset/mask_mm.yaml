@@ -4,15 +4,18 @@ train:
   crop_type: Random
   s2_tile: []
   modalities: [s2,s1_asc]
+  max_len: 60
 val:
   _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
   directory: null
-  crop_type: Random
+  crop_type: Center
   s2_tile: []
   modalities: [s2,s1_asc]
+  max_len=: 60
 test:
   _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
   directory: null
-  crop_type: Random
+  crop_type: Center
   s2_tile: []
   modalities: [s2,s1_asc]
+  max_len: 60
