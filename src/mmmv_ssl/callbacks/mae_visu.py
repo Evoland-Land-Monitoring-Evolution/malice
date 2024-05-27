@@ -145,12 +145,13 @@ class MAECrossRecClb(ImageCallbacks):
         trg, pred = self.extract_per_view(batch=batch,
                                           out_model=out_model,
                                           opt=opt)
+        #print(f"in clb tragte {trg[0,0,0,...]}")
         if "s1" in opt:
-            stats = tuple_stats[1]
+            stats = None
         elif "s2" in opt:
             stats = tuple_stats[0]
         else:
-            stats = None
+            stats = tuple_stats[1]
         if stats is not None:
             unscale_trg = unscale_data(
                 stats,
@@ -165,33 +166,34 @@ class MAECrossRecClb(ImageCallbacks):
                 pred.other_mod[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
         else:
+            #print(f"in callbakcs {trg[0, 0, 0, ...]}")
             unscale_trg = trg[0, :self.n_images, self.plot_bands, ...].cpu()
             unscale_mnm = pred.same_mod[0, :self.n_images, self.plot_bands,
                                         ...].cpu()
             unscale_crm = pred.other_mod[0, :self.n_images, self.plot_bands,
                                          ...].cpu()
-
+        #print(f"in callbakcs {unscale_trg[0,0, ...]}")
         OutVisu = namedtuple("OutVisu", ["trg", "mnm", "crm"])
-        #torch.save(unscale_trg, "out_visu.pt")
+        torch.save(unscale_trg, f"{opt}_out_visu.pt")
         return OutVisu(unscale_trg, unscale_mnm, unscale_crm)
 
     def make_grid(self, input) -> Tensor:
         grid1 = torchvision.utils.make_grid(
             input.trg,
             nrow=self.n_images,
-            normalize=True,
+            normalize=self.normalize,
             value_range=self.value_range,
         )
         grid2 = torchvision.utils.make_grid(
             input.mnm,
             nrow=self.n_images,
-            normalize=True,
+            normalize=self.normalize,
             value_range=self.value_range,
         )
         grid3 = torchvision.utils.make_grid(
             input.crm,
             nrow=self.n_images,
-            normalize=True,
+            normalize=self.normalize,
             value_range=self.value_range,
         )
         return torch.cat([grid1, grid2, grid3], dim=1)

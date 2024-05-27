@@ -1,7 +1,7 @@
 datamodule:
   _target_: mmmv_ssl.data.datamodule.mm_datamodule.MMMaskDataModule
   num_workers: 2
-  max_len: 120
+  max_len: 60
   batch_size: 2
   crop_size: 64
   s2_band: null

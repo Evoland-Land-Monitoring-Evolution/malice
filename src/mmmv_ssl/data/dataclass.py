@@ -113,9 +113,9 @@ class BatchMMSits:
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
         self.sits1a = self.sits1a.to(device=device, dtype=dtype)
-        self.sits1b = self.sits1a.to(device=device, dtype=dtype)
+        self.sits1b = self.sits1b.to(device=device, dtype=dtype)
         self.sits2a = self.sits2a.to(device=device, dtype=dtype)
-        self.sits2b = self.sits2a.to(device=device, dtype=dtype)
+        self.sits2b = self.sits2b.to(device=device, dtype=dtype)
         return self
 
 

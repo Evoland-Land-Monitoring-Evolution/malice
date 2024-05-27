@@ -113,17 +113,20 @@ class MMMaskDataModule(pl.LightningDataModule):
     def on_after_batch_transfer(self, batch: BatchMMSits,
                                 dataloader_idx: int) -> BatchMMSits:
         #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
-        batch.sits1a.sits = apply_transform_basic(
+        sits1a = apply_transform_basic(
             batch.sits1a.sits, transform=self.all_transform.s1_asc.transform)
-        batch.sits1b.sits = apply_transform_basic(
+        sits1b = apply_transform_basic(
             batch.sits1b.sits, transform=self.all_transform.s1_asc.transform)
         sits2a = apply_transform_basic(
             batch.sits2a.sits, transform=self.all_transform.s2.transform)
         #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
-        batch.sits2b.sits = apply_transform_basic(
+        sits2b = apply_transform_basic(
             batch.sits2b.sits, transform=self.all_transform.s2.transform)
         batch.sits2a.sits = sits2a
-        #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
+        batch.sits2b.sits = sits2b
+        batch.sits1a.sits = sits1a
+        batch.sits1b.sits = sits1b
+
         #print("in datamodule", batch.sits2b.sits[0, 0, 0, ...])
 
         return batch

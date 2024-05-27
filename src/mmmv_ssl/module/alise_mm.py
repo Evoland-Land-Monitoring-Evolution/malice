@@ -115,6 +115,7 @@ class AliseMM(TemplateModule, LightningModule):
         self.w_crossrec = train_config.w_crossrec
 
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
+
         s1 = merge2views(batch.sits1a, batch.sits1b)
         s2 = merge2views(batch.sits2a, batch.sits2b)
         out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
@@ -303,7 +304,7 @@ class AliseMM(TemplateModule, LightningModule):
         return OutMMAliseSharedStep(loss=global_loss, out_forward=out_model)
 
     def training_step(self, batch: BatchMMSits, batch_idx: int):
-        print(batch.sits2a.sits[0, 0, 0, ...])
+
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:
             return None
@@ -322,7 +323,7 @@ class AliseMM(TemplateModule, LightningModule):
 
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:
-            return None
+            return out_shared_step.out_forward
         self.log_dict(
             out_shared_step.loss.to_dict(suffix="val"),
             on_epoch=True,
