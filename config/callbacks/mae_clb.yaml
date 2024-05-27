@@ -25,7 +25,16 @@ s2b_image:
   normalize: true
   value_range: [100,3000]
   opt: s2b
-
+emb_s2a:
+    _target_: mmmv_ssl.callbacks.mae_visu.EmbeddingsVisu
+    n_images: 10
+    opt: s2a
+    normalize: false
+emb_s1a:
+    _target_: mmmv_ssl.callbacks.mae_visu.EmbeddingsVisu
+    n_images: 10
+    opt: s1a
+    normalize: false
 learningrate:
   _target_: lightning.pytorch.callbacks.LearningRateMonitor
 
