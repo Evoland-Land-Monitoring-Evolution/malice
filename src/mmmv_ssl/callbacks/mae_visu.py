@@ -16,14 +16,15 @@ from mmmv_ssl.module.dataclass import OutMMAliseF
 
 
 class ImageCallbacks(Callback):
+
     def __init__(
-        self,
-        n_images,
-        plot_bands=None,
-        normalize=False,
-        value_range=(100, 3000),
-        q=0.05,
-        batch_max: int = 10,
+            self,
+            n_images,
+            plot_bands=None,
+            normalize=False,
+            value_range=(100, 3000),
+            q=0.05,
+            batch_max: int = 10,
     ):
         super().__init__()
         if plot_bands is None:
@@ -79,6 +80,7 @@ class ImageCallbacks(Callback):
 
 
 class MAECrossRecClb(ImageCallbacks):
+
     def __init__(
         self,
         n_images,
@@ -89,9 +91,8 @@ class MAECrossRecClb(ImageCallbacks):
         batch_max: int = 10,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
-        super().__init__(
-            n_images, plot_bands, normalize, value_range, q, batch_max
-        )
+        super().__init__(n_images, plot_bands, normalize, value_range, q,
+                         batch_max)
         self.opt = opt
 
     def on_validation_batch_end(
@@ -103,9 +104,10 @@ class MAECrossRecClb(ImageCallbacks):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        images_bf = self.show_reconstructions(
-            outputs, tuple_stats=pl_module.stats, opt=self.opt, batch=batch
-        )
+        images_bf = self.show_reconstructions(outputs,
+                                              tuple_stats=pl_module.stats,
+                                              opt=self.opt,
+                                              batch=batch)
         final_grid_bf = self.make_grid(images_bf)
         self.load_grid_logger(final_grid_bf, trainer, description=self.opt)
 
@@ -139,9 +141,9 @@ class MAECrossRecClb(ImageCallbacks):
         export_doy: bool = False,
         batch: BatchMMSits | None = None,
     ):
-        trg, pred = self.extract_per_view(
-            batch=batch, out_model=out_model, opt=opt
-        )
+        trg, pred = self.extract_per_view(batch=batch,
+                                          out_model=out_model,
+                                          opt=opt)
         # print(f"in clb tragte {trg[0,0,0,...]}")
         if "s1" in opt:
             stats = None
@@ -152,25 +154,23 @@ class MAECrossRecClb(ImageCallbacks):
         if stats is not None:
             unscale_trg = unscale_data(
                 stats,
-                trg[0, : self.n_images, ...].cpu(),
+                trg[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
             unscale_mnm = unscale_data(
                 stats,
-                pred.same_mod[0, : self.n_images, ...].cpu(),
+                pred.same_mod[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
             unscale_crm = unscale_data(
                 stats,
-                pred.other_mod[0, : self.n_images, ...].cpu(),
+                pred.other_mod[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
         else:
             # print(f"in callbakcs {trg[0, 0, 0, ...]}")
-            unscale_trg = trg[0, : self.n_images, self.plot_bands, ...].cpu()
-            unscale_mnm = pred.same_mod[
-                0, : self.n_images, self.plot_bands, ...
-            ].cpu()
-            unscale_crm = pred.other_mod[
-                0, : self.n_images, self.plot_bands, ...
-            ].cpu()
+            unscale_trg = trg[0, :self.n_images, self.plot_bands, ...].cpu()
+            unscale_mnm = pred.same_mod[0, :self.n_images, self.plot_bands,
+                                        ...].cpu()
+            unscale_crm = pred.other_mod[0, :self.n_images, self.plot_bands,
+                                         ...].cpu()
         # print(f"in callbakcs {unscale_trg[0,0, ...]}")
         OutVisu = namedtuple("OutVisu", ["trg", "mnm", "crm"])
         torch.save(unscale_trg, f"{opt}_out_visu.pt")
@@ -199,6 +199,7 @@ class MAECrossRecClb(ImageCallbacks):
 
 
 class EmbeddingsVisu(ImageCallbacks):
+
     def __init__(
         self,
         n_images,
@@ -209,9 +210,8 @@ class EmbeddingsVisu(ImageCallbacks):
         batch_max: int = 10,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
-        super().__init__(
-            n_images, plot_bands, normalize, value_range, q, batch_max
-        )
+        super().__init__(n_images, plot_bands, normalize, value_range, q,
+                         batch_max)
         self.opt = opt
 
     def on_validation_batch_end(
@@ -223,7 +223,17 @@ class EmbeddingsVisu(ImageCallbacks):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        images = outputs.repr.s2a[0, : self.n_images, [0, 1, 2], ...]
+        if self.opt == "s2a":
+            repr = outputs.repr.s2a
+        elif self.opt == "s1b":
+            repr = outputs.repr.s1b
+        elif self.opt == "s1a":
+            repr = outputs.repr.s1a
+        elif self.opt == "s2b":
+            repr = outputs.repr.s2b
+        else:
+            raise NotImplementedError
+        images = repr[0, :self.n_images, [0, 1, 2], ...].cpu().float()
         grid = torchvision.utils.make_grid(
             images,
             nrow=self.n_images,
@@ -231,6 +241,6 @@ class EmbeddingsVisu(ImageCallbacks):
             value_range=self.value_range,
         )
 
-        self.load_grid_logger(
-            grid, trainer, description=f"Embedding {self.opt}"
-        )
+        self.load_grid_logger(grid,
+                              trainer,
+                              description=f"Embedding {self.opt}")

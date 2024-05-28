@@ -67,13 +67,13 @@ class LearnedQMultiHeadAttention(nn.Module):
         my_logger.debug(f"query{q.shape}")
         # q=q.to(v)
         output = torch.nn.functional.scaled_dot_product_attention(
-            query=q, key=k, value=v, attn_mask=pad_mask
-        )  # B,h,nq,d_in
+            query=q, key=k, value=v, attn_mask=pad_mask)  # B,h,nq,d_in
         my_logger.debug(f"output {output.shape}")
         return rearrange(output, "b h nq c -> b nq (h c)")
 
 
 class MetaDecoder(nn.Module):
+
     def __init__(
         self,
         num_heads: int,
@@ -84,9 +84,10 @@ class MetaDecoder(nn.Module):
     ):
         super().__init__()
         self.num_heads = num_heads
-        self.cross_attn = LearnedQMultiHeadAttention(
-            n_head=num_heads, d_k=d_k, d_in=input_channels, d_q_in=d_q_in
-        )
+        self.cross_attn = LearnedQMultiHeadAttention(n_head=num_heads,
+                                                     d_k=d_k,
+                                                     d_in=input_channels,
+                                                     d_q_in=d_q_in)
         self.input_channels = input_channels
         if intermediate_layers is None:
             self.intermediate_layers = None
@@ -115,7 +116,8 @@ class MetaDecoder(nn.Module):
         out_mm = self.cross_attn(v=mm_sits, q=mm_queries, pad_mask=None)
         if self.intermediate_layers is not None:
             out_mm = self.intermediate_layers(
-                out_mm, key_padding_mask=padd_mm
+                out_mm,
+                key_padding_mask=None  #padd_mm
             )  # so the padded dates do not interfere during
             # SA
         return out_mm
