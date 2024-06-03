@@ -60,8 +60,8 @@ decodeur:
     intermediate_layers:
       config:
         _target_: mmmv_ssl.model.transformer.TransformerBlockConfig
-        n_layers: 3
-        d_model: 32
+        n_layers: 1
+        d_model: 64
         d_in: 128
         norm_first: False
         n_head: 4

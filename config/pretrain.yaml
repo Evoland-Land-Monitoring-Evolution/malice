@@ -15,7 +15,6 @@ hydra:
   job:
     name: mm_mae_sd
 path_run_dir: ${path_export_dir}/${hydra.job.name}/wrec${train.w_rec}_winv${train.w_inv}_wcr${train.w_crossrec}/bs${train.batch_size}/seed${seed}
-
 load_model: false
 path_dir_model: null
 dir_training: null

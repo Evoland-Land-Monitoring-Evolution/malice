@@ -136,7 +136,7 @@ class MAECrossRecClb(ImageCallbacks):
     def show_reconstructions(
         self,
         out_model: OutMMAliseF,
-        tuple_stats: tuple[Stats] | None,
+        tuple_stats: tuple[Stats,Stats],
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
         export_doy: bool = False,
         batch: BatchMMSits | None = None,

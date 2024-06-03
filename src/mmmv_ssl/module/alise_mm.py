@@ -235,15 +235,18 @@ class AliseMM(TemplateModule, LightningModule):
         my_logger.debug(f"queries{mm_queries.shape}")
         h, w = batch.sits2a.h, batch.sits2a.w
         padd_mm = torch.cat(
-            [
+            [       repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                    repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
                 repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),                    
                 repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),         
                 repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+
+
+
+
             ],
             dim=0,
         )  # 2(b h w) t
@@ -447,3 +450,11 @@ class AliseMM(TemplateModule, LightningModule):
         creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
         crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
         return 1 / 2 * (crecb + creca)
+    def load_weights(self, path_ckpt, strict=True):
+        my_logger.info(f"We load state dict  from {path_ckpt}")
+        if not torch.cuda.is_available():
+            map_params = {"map_location": "cpu"}
+        else:
+            map_params = {}
+        ckpt = torch.load(path_ckpt, **map_params)
+        self.load_state_dict(ckpt["state_dict"], strict=strict)
