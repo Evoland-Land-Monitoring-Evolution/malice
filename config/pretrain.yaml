@@ -19,5 +19,5 @@ load_model: false
 path_dir_model: null
 dir_training: null
 seed: 1
-path_export_dir: /home/ad/dumeuri/trainings
+path_export_dir: /home/ad/dumeuri/trainings/mm_mae_trainings
 verbose: 0 
