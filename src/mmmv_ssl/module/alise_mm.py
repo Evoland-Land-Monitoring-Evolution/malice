@@ -16,6 +16,7 @@ from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels, merge2views
 from mmmv_ssl.model.dataclass import OutTempProjForward
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
+from mmmv_ssl.model.projector import IdentityProj, ProjectorTemplate
 from mmmv_ssl.model.query_utils import TempMetaQuery
 from mmmv_ssl.model.temp_proj import TemporalProjector
 from mmmv_ssl.module.dataclass import (
@@ -46,6 +47,7 @@ class AliseMM(TemplateModule, LightningModule):
         d_repr: int = 64,
         query_s1s2_d: int = 64,
         pe_channels: int = 64,
+        projector: DictConfig | ProjectorTemplate = None,
     ):
         super().__init__(train_config)
 
@@ -124,6 +126,12 @@ class AliseMM(TemplateModule, LightningModule):
         self.w_inv = train_config.w_inv
         self.w_rec = train_config.w_rec
         self.w_crossrec = train_config.w_crossrec
+        if isinstance(projector, DictConfig):
+            self.projector_emb = instantiate(projector, input_channels=d_repr)
+        elif (projector is None) or (self.w_inv == 0):
+            self.projector_emb = IdentityProj()
+        else:
+            self.projector_emb = projector
 
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         h = batch.sits2a.h
@@ -135,7 +143,7 @@ class AliseMM(TemplateModule, LightningModule):
         # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
         mask_tp_s1 = repeat(~s1.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)
-        embedding: OutTempProjForward = self.common_temp_proj(
+        aligned_repr: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
             padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
@@ -213,11 +221,19 @@ class AliseMM(TemplateModule, LightningModule):
             dim=1,
         )
         embedding_s1 = rearrange(
-            embedding.s1, "(view bhw) t c-> view bhw t c", view=2
+            aligned_repr.s1, "(view bhw) t c-> view bhw t c", view=2
         )
 
         embedding_s2 = rearrange(
-            embedding.s2, "(view bhw) t c-> view bhw t c", view=2
+            aligned_repr.s2, "(view bhw) t c-> view bhw t c", view=2
+        )
+        embeddings = rearrange(
+            torch.cat([embedding_s2, embedding_s1], dim=0),
+            "view bhw t c -> (view bhw) t c",
+        )
+        embeddings = self.projector_emb(embeddings)
+        embeddings = rearrange(
+            embeddings, "(view bhw) t c -> view bhw t c", view=4
         )
         mm_embedding = torch.cat(
             [
@@ -235,18 +251,15 @@ class AliseMM(TemplateModule, LightningModule):
         my_logger.debug(f"queries{mm_queries.shape}")
         h, w = batch.sits2a.h, batch.sits2a.w
         padd_mm = torch.cat(
-            [       repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                    repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+            [
+                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
                 repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
                 repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),                    
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
                 repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),         
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
                 repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-
-
-
-
             ],
             dim=0,
         )  # 2(b h w) t
@@ -303,8 +316,13 @@ class AliseMM(TemplateModule, LightningModule):
                 same_mod=s2_rec[0, ...], other_mod=s2_rec[3, ...]
             ),
         )
-
-        return OutMMAliseF(repr=repr, rec=rec)
+        out_emb = LatRepr(
+            s2a=embeddings[0, ...],
+            s2b=embeddings[1, ...],
+            s1a=embeddings[2, ...],
+            s1b=embeddings[3, ...],
+        )
+        return OutMMAliseF(repr=repr, rec=rec, emb=out_emb)
 
     def shared_step(self, batch: BatchMMSits) -> OutMMAliseSharedStep:
         out_model = self.forward(batch)
@@ -313,7 +331,7 @@ class AliseMM(TemplateModule, LightningModule):
             batch=batch, rec=out_model.rec
         )
 
-        inv_loss = self.invariance_loss(out_model.repr)
+        inv_loss = self.invariance_loss(out_model.emb)
         if tot_rec_loss is None:
             global_loss = None
         else:
@@ -496,6 +514,7 @@ class AliseMM(TemplateModule, LightningModule):
         creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
         crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
         return 1 / 2 * (crecb + creca)
+
     def load_weights(self, path_ckpt, strict=True):
         my_logger.info(f"We load state dict  from {path_ckpt}")
         if not torch.cuda.is_available():

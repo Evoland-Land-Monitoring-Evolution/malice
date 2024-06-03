@@ -220,3 +220,22 @@ def test_instantiate_deepdeocder_training_step():
     input_batch = generate_mm_input(1, 2, 2, 64, 64)
     out_module = module.shared_step(input_batch)
     print(out_module.loss.to_dict())
+
+
+def test_instantiate_proj_training_step():
+    d_repr = 8
+    module_config = DictConfig(
+        open_yaml("../config/module/alise_mm_proj.yaml")
+    )
+    train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
+    mm_channels = MMChannels(s1_channels=3, s2_channels=10)
+    module = instantiate(
+        module_config,
+        train_config=train_config,
+        _recursive_=False,
+        input_channels=mm_channels,
+        d_repr=d_repr,
+    )
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
+    out_module = module.shared_step(input_batch)
+    print(out_module.loss.to_dict())

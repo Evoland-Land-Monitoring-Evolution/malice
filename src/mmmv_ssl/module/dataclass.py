@@ -31,6 +31,7 @@ class Rec:
 class OutMMAliseF:
     repr: LatRepr
     rec: Rec
+    emb: LatRepr
 
 
 @dataclass
