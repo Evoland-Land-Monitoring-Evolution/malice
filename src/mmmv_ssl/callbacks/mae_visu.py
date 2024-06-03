@@ -12,7 +12,7 @@ from torch import Tensor
 
 from mmmv_ssl.data.dataclass import BatchMMSits
 from mmmv_ssl.module.alise_mm import AliseMM
-from mmmv_ssl.module.dataclass import OutMMAliseF
+from mmmv_ssl.module.dataclass import OutMMAliseF,OutMMAliseSharedStep
 
 
 class ImageCallbacks(Callback):
@@ -99,7 +99,7 @@ class MAECrossRecClb(ImageCallbacks):
         self,
         trainer: Trainer | Iterable[Trainer],
         pl_module: AliseMM,
-        outputs: OutMMAliseF,
+        outputs: OutMMAliseSharedStep,
         batch: BatchMMSits,
         batch_idx: int,
         dataloader_idx: int = 0,
@@ -114,14 +114,15 @@ class MAECrossRecClb(ImageCallbacks):
     def extract_per_view(
         self,
         batch: BatchMMSits,
-        out_model: OutMMAliseF,
+            out_step: OutMMAliseSharedStep,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
+        out_model=out_step.out_forward
         if opt == "s1a":
-            trg = batch.sits1a.sits
+            trg = out_step.despeckle_s1.s1a
             pred = out_model.rec.s1a
         elif opt == "s1b":
-            trg = batch.sits1b.sits
+            trg = out_step.despeckle_s1.s1b
             pred = out_model.rec.s1b
         elif opt == "s2a":
             trg = batch.sits2a.sits
@@ -135,14 +136,14 @@ class MAECrossRecClb(ImageCallbacks):
 
     def show_reconstructions(
         self,
-        out_model: OutMMAliseF,
-        tuple_stats: tuple[Stats] | None,
+        out_model: OutMMAliseSharedStep,
+        tuple_stats: tuple[Stats,Stats],
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
         export_doy: bool = False,
         batch: BatchMMSits | None = None,
     ):
         trg, pred = self.extract_per_view(batch=batch,
-                                          out_model=out_model,
+                                          out_step=out_model,
                                           opt=opt)
         # print(f"in clb tragte {trg[0,0,0,...]}")
         if "s1" in opt:
@@ -218,11 +219,12 @@ class EmbeddingsVisu(ImageCallbacks):
         self,
         trainer: Trainer | Iterable[Trainer],
         pl_module: AliseMM,
-        outputs: OutMMAliseF,
+        outputs: OutMMAliseSharedStep,
         batch: BatchMMSits,
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
+        outputs=outputs.out_forward
         if self.opt == "s2a":
             repr = outputs.repr.s2a
         elif self.opt == "s1b":

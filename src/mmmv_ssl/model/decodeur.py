@@ -117,7 +117,7 @@ class MetaDecoder(nn.Module):
         if self.intermediate_layers is not None:
             out_mm = self.intermediate_layers(
                 out_mm,
-                key_padding_mask=None  #padd_mm
+                key_padding_mask=padd_mm
             )  # so the padded dates do not interfere during
             # SA
         return out_mm
