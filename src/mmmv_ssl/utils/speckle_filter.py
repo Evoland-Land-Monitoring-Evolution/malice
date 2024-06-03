@@ -12,7 +12,7 @@ def window_reduction(
     reduction: Callable,
     kernel_size: int = 3,
     stride: int | None = None,
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, int]:
     """Apply a reduction function to a batch of image patches.
     The reduction function will be used as a sliding window with
     the given kernel size for the reduction computation and the result will
@@ -37,20 +37,25 @@ def window_reduction(
     patches_orig = patches_orig.view(
         nb_samples, nb_channels, output_h, output_w
     )
-
-    return F.pad(patches_orig, (margin, margin, margin, margin))
+    # print(f"margin {margin}")
+    # print(f"patcg orig {patches_orig}")
+    return F.pad(patches_orig, (margin, margin, margin, margin)), margin
 
 
 def lee_filter(
     data: torch.Tensor, win_size: int, c_u: float = 0.25
-) -> torch.Tensor:
+) -> tuple[torch.Tensor, int]:
     """Basic Lee despeckle filter. Custom implementation."""
-    x_mean = window_reduction(data, torch.mean, kernel_size=win_size)
-    x_var = window_reduction(data, torch.var, kernel_size=win_size)
+    x_mean, margin = window_reduction(data, torch.mean, kernel_size=win_size)
+    x_var, _ = window_reduction(data, torch.var, kernel_size=win_size)
+    # print(f"var {x_var[0,:,:,:]}")
     c_i = torch.sqrt(x_var) / (x_mean + 1e-5)
-    w_t = F.relu(1.0 - (c_u * c_u / (c_i * c_i)))
+    # print(f"ci:{c_i}")
+    w_t = F.relu(1.0 - (c_u * c_u / (c_i * c_i))) + 1e-5
+    # print(f"wt : {w_t[0,...]}")
+    # print(f"data {data[0,:,:3,:3]}")
     res: torch.Tensor = data * w_t + x_mean * (1.0 - w_t)
-    return res
+    return res, margin
 
 
 def despeckle(data: torch.Tensor) -> torch.Tensor:
@@ -91,8 +96,8 @@ def despeckle_batch_fp(data: torch.Tensor) -> torch.Tensor:
     return torch.cat(out_batch_samples, dim=0).to(data.device)
 
 
-def despeckle_batch(data: torch.Tensor) -> torch.Tensor:
+def despeckle_batch(data: torch.Tensor) -> tuple[torch.Tensor, int]:
     """Despeckle all the patches in a batch using window reduction and Lee filter"""
-    res = lee_filter(torch.exp(data), win_size=7)
+    res, margin = lee_filter(torch.exp(data), win_size=7)
     # print(res[0,...])
-    return torch.log(res)
+    return torch.log(res), margin

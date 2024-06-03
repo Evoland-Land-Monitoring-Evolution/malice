@@ -371,39 +371,85 @@ class AliseMM(TemplateModule, LightningModule):
         valid_mask2b = create_mask_loss(
             batch.sits2b.padd_index, ~batch.sits2b.mask
         )  # in .mask True means pixel valid
-        despeckle_s1a = despeckle_batch(
+        despeckle_s1a, margin = despeckle_batch(
             rearrange(batch.sits1a.sits, "b t c h w -> (b t ) c h w")
         )
         despeckle_s1a = rearrange(
             despeckle_s1a, "(b t ) c h w -> b t c h w", b=self.bs
-        )
-        despeckle_s1b = despeckle_batch(
+        )[
+            ...,
+            margin : batch.sits1a.h - margin,
+            margin : batch.sits1a.w - margin,
+        ]
+        despeckle_s1b, _ = despeckle_batch(
             rearrange(batch.sits1b.sits, "b t c h w -> (b t ) c h w")
         )
         despeckle_s1b = rearrange(
             despeckle_s1b, "(b t ) c h w -> b t c h w", b=self.bs
-        )
+        )[
+            ...,
+            margin : batch.sits1a.h - margin,
+            margin : batch.sits1a.w - margin,
+        ]
         if torch.sum(valid_mask1a) != 0:
+            valid_mask1a = valid_mask1a[
+                ...,
+                margin : batch.sits1a.h - margin,
+                margin : batch.sits1a.w - margin,
+            ]
             s1a_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
-                    torch.masked_select(rec.s1a.same_mod, valid_mask1a),
+                    torch.masked_select(
+                        rec.s1a.same_mod[
+                            ...,
+                            margin : batch.sits1a.h - margin,
+                            margin : batch.sits1a.w - margin,
+                        ],
+                        valid_mask1a,
+                    ),
                     torch.masked_select(despeckle_s1a, valid_mask1a),
                 ),
                 crossm_rec=self.rec_loss(
-                    torch.masked_select(rec.s1a.other_mod, valid_mask1a),
+                    torch.masked_select(
+                        rec.s1a.other_mod[
+                            ...,
+                            margin : batch.sits1a.h - margin,
+                            margin : batch.sits1a.w - margin,
+                        ],
+                        valid_mask1a,
+                    ),
                     torch.masked_select(despeckle_s1a, valid_mask1a),
                 ),
             )
         else:
             return None, None
         if torch.sum(valid_mask1b) != 0:
+            valid_mask1b = valid_mask1b[
+                ...,
+                margin : batch.sits1a.h - margin,
+                margin : batch.sits1a.w - margin,
+            ]
             s1b_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
-                    torch.masked_select(rec.s1b.same_mod, valid_mask1b),
+                    torch.masked_select(
+                        rec.s1b.same_mod[
+                            ...,
+                            margin : batch.sits1b.h - margin,
+                            margin : batch.sits1b.w - margin,
+                        ],
+                        valid_mask1b,
+                    ),
                     torch.masked_select(despeckle_s1b, valid_mask1b),
                 ),
                 crossm_rec=self.rec_loss(
-                    torch.masked_select(rec.s1b.other_mod, valid_mask1b),
+                    torch.masked_select(
+                        rec.s1b.other_mod[
+                            ...,
+                            margin : batch.sits1b.h - margin,
+                            margin : batch.sits1b.w - margin,
+                        ],
+                        valid_mask1b,
+                    ),
                     torch.masked_select(despeckle_s1b, valid_mask1b),
                 ),
             )
