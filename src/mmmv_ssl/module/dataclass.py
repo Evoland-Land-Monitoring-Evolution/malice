@@ -34,6 +34,13 @@ class OutMMAliseF:
 
 
 @dataclass
+class DespeckleS1:
+    s1a: Tensor
+    s1b: Tensor
+
+
+@dataclass
 class OutMMAliseSharedStep:
     loss: GlobalInvRecMMLoss
     out_forward: OutMMAliseF
+    despeckle_s1: DespeckleS1

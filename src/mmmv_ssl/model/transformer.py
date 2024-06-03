@@ -48,7 +48,7 @@ class TransformerBlock(nn.Module):
     ) -> Tensor:
         """
         input: b,n,c
-        key_padding_mask: b,n or n
+        key_padding_mask: b,n or n : true means ignored
         src_mask: b*nhead,n,n
         """
 

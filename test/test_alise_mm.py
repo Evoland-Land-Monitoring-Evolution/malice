@@ -15,19 +15,27 @@ from mmmv_ssl.module.alise_mm import AliseMM
 from mmmv_ssl.module.dataclass import OutMMAliseF
 
 
-def generate_input_mod(b, t, c, h, w):
+def generate_input_mod(b, t, c, h, w, opt=None):
+    if opt == "log":
+        sits = (
+            torch.rand(b, t, c, h, w)
+            + torch.arange(h)[None, None, None, :, None] / 100
+            + torch.arange(w)[None, None, None, None, :] / 100
+        )
+    else:
+        sits = torch.rand(b, t, c, h, w)
     return BatchOneMod(
-        sits=torch.rand(b, t, c, h, w),
+        sits=sits,
         input_doy=repeat(torch.arange(t), "t -> b t", b=b),
         true_doy=repeat(torch.arange(t), "t -> b t", b=b),
-        padd_index=torch.zeros(b, t),
-        mask=torch.ones(b, t, c, h, w),
+        padd_index=torch.zeros(b, t).bool(),
+        mask=torch.zeros(b, t, c, h, w).bool(),
     )
 
 
 def generate_mm_input(b, t1, t2, h, w):
-    b_s1_a = generate_input_mod(b, t1, 3, h, w)
-    b_s1_b = generate_input_mod(b, t1, 3, h, w)
+    b_s1_a = generate_input_mod(b, t1, 3, h, w, "log")
+    b_s1_b = generate_input_mod(b, t1, 3, h, w, "log")
     b_s2_a = generate_input_mod(b, t2, 10, h, w)
     b_s2_b = generate_input_mod(b, t2, 10, h, w)
     return BatchMMSits(
@@ -198,7 +206,7 @@ def test_instantiate_deepdeocder():
 def test_instantiate_deepdeocder_training_step():
     d_repr = 8
     module_config = DictConfig(
-        open_yaml("../config/model/alise_mm_deepdecod.yaml")
+        open_yaml("../config/module/alise_mm_deepdecod.yaml")
     )
     train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
     mm_channels = MMChannels(s1_channels=3, s2_channels=10)

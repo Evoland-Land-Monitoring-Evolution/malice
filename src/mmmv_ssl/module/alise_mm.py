@@ -19,6 +19,7 @@ from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.query_utils import TempMetaQuery
 from mmmv_ssl.model.temp_proj import TemporalProjector
 from mmmv_ssl.module.dataclass import (
+    DespeckleS1,
     LatRepr,
     OutMMAliseF,
     OutMMAliseSharedStep,
@@ -26,12 +27,12 @@ from mmmv_ssl.module.dataclass import (
     RecWithOrigin,
 )
 from mmmv_ssl.module.loss import GlobalInvRecMMLoss, OneViewRecL, TotalRecLoss
+from mmmv_ssl.utils.speckle_filter import despeckle_batch
 
 my_logger = logging.getLogger(__name__)
 
 
 class AliseMM(TemplateModule, LightningModule):
-
     def __init__(
         self,
         encodeur_s1: UBarnReprEncoder | DictConfig,
@@ -51,8 +52,9 @@ class AliseMM(TemplateModule, LightningModule):
         self.d_repr = d_repr
         self.stats = stats
         self.input_channels = input_channels
-        self.query_builder = TempMetaQuery(pe_config=pe_config,
-                                           input_channels=pe_channels)
+        self.query_builder = TempMetaQuery(
+            pe_config=pe_config, input_channels=pe_channels
+        )
         if isinstance(decodeur, DictConfig):
             self.meta_decodeur = instantiate(
                 decodeur,
@@ -88,28 +90,35 @@ class AliseMM(TemplateModule, LightningModule):
             self.common_temp_proj = common_temp_proj
         else:
             self.common_temp_proj: TemporalProjector = instantiate(
-                common_temp_proj,
-                input_channels=self.encodeur_s2.ubarn.d_model)
-        self.proj_s1 = torch.nn.Linear(self.meta_decodeur.input_channels,
-                                       input_channels.s1_channels)
-        self.proj_s2 = torch.nn.Linear(self.meta_decodeur.input_channels,
-                                       input_channels.s2_channels)
+                common_temp_proj, input_channels=self.encodeur_s2.ubarn.d_model
+            )
+        self.proj_s1 = torch.nn.Linear(
+            self.meta_decodeur.input_channels, input_channels.s1_channels
+        )
+        self.proj_s2 = torch.nn.Linear(
+            self.meta_decodeur.input_channels, input_channels.s2_channels
+        )
         self.query_s1s2_d = query_s1s2_d
         assert (
-            query_s1s2_d + pe_channels) % self.meta_decodeur.num_heads == 0, (
-                f"decoder query shape : {query_s1s2_d + pe_channels} decodeur"
-                f" heads {self.meta_decodeur.num_heads}")
+            query_s1s2_d + pe_channels
+        ) % self.meta_decodeur.num_heads == 0, (
+            f"decoder query shape : {query_s1s2_d + pe_channels} decodeur"
+            f" heads {self.meta_decodeur.num_heads}"
+        )
         self.q_decod_s1 = nn.Parameter(
-            torch.zeros(query_s1s2_d)).requires_grad_(True)
-        nn.init.normal_(self.q_decod_s1,
-                        mean=0,
-                        std=np.sqrt(2.0 / (query_s1s2_d)))  # TODO check that
+            torch.zeros(query_s1s2_d)
+        ).requires_grad_(True)
+        nn.init.normal_(
+            self.q_decod_s1, mean=0, std=np.sqrt(2.0 / (query_s1s2_d))
+        )  # TODO check that
         self.q_decod_s2 = nn.Parameter(
-            torch.zeros(query_s1s2_d)).requires_grad_(
-                True)  # self.meta_decodeur.num_heads,
-        nn.init.normal_(self.q_decod_s2,
-                        mean=0,
-                        std=np.sqrt(2.0 / (query_s1s2_d)))  # TODO check that
+            torch.zeros(query_s1s2_d)
+        ).requires_grad_(
+            True
+        )  # self.meta_decodeur.num_heads,
+        nn.init.normal_(
+            self.q_decod_s2, mean=0, std=np.sqrt(2.0 / (query_s1s2_d))
+        )  # TODO check that
         self.inv_loss = torch.nn.MSELoss()
         self.rec_loss = torch.nn.MSELoss()
         self.w_inv = train_config.w_inv
@@ -123,7 +132,6 @@ class AliseMM(TemplateModule, LightningModule):
         s2 = merge2views(batch.sits2a, batch.sits2b)
         out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
         out_s2 = self.encodeur_s2.forward_keep_input_dim(s2)
-
         # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
         mask_tp_s1 = repeat(~s1.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)
@@ -204,13 +212,13 @@ class AliseMM(TemplateModule, LightningModule):
             ],
             dim=1,
         )
-        embedding_s1 = rearrange(embedding.s1,
-                                 "(view bhw) t c-> view bhw t c",
-                                 view=2)
+        embedding_s1 = rearrange(
+            embedding.s1, "(view bhw) t c-> view bhw t c", view=2
+        )
 
-        embedding_s2 = rearrange(embedding.s2,
-                                 "(view bhw) t c-> view bhw t c",
-                                 view=2)
+        embedding_s2 = rearrange(
+            embedding.s2, "(view bhw) t c-> view bhw t c", view=2
+        )
         mm_embedding = torch.cat(
             [
                 embedding_s2[0, ...],
@@ -240,9 +248,9 @@ class AliseMM(TemplateModule, LightningModule):
             dim=0,
         )  # 2(b h w) t
         # print(f"padd mask {padd_mm.shape}")
-        out = self.meta_decodeur.forward(mm_sits=mm_embedding,
-                                         padd_mm=padd_mm,
-                                         mm_queries=mm_queries)  # (2bhw) t d
+        out = self.meta_decodeur.forward(
+            mm_sits=mm_embedding, padd_mm=padd_mm, mm_queries=mm_queries
+        )  # (2bhw) t d
 
         out = rearrange(
             out,
@@ -253,40 +261,44 @@ class AliseMM(TemplateModule, LightningModule):
             w=batch.sits1a.w,
         )
         s1_rec = self.proj_s1(
-            rearrange(out[[1, 3, 4, 6], ...],
-                      "mod b t c h w -> (mod b ) t c h w"))  #
+            rearrange(
+                out[[1, 3, 4, 6], ...], "mod b t c h w -> (mod b ) t c h w"
+            )
+        )  #
         s2_rec = self.proj_s2(
-            rearrange(out[[0, 2, 5, 7], ...],
-                      "mod b t c h w -> (mod b) t c h w"))
+            rearrange(
+                out[[0, 2, 5, 7], ...], "mod b t c h w -> (mod b) t c h w"
+            )
+        )
         s1_rec = rearrange(s1_rec, "(mod b) t h w c -> mod b t c h w", mod=4)
         s2_rec = rearrange(s2_rec, "(mod b) t h w c -> mod b t c h w", mod=4)
         repr = LatRepr(
-            s1a=rearrange(embedding_s1[0, ...],
-                          "(b h w) t c-> b t c h w",
-                          h=h,
-                          w=w),
-            s1b=rearrange(embedding_s1[1, ...],
-                          "(b h w) t c -> b t c h w",
-                          h=h,
-                          w=w),
-            s2a=rearrange(embedding_s2[0, ...],
-                          "(b h w) t c -> b t c h w",
-                          h=h,
-                          w=w),
-            s2b=rearrange(embedding_s2[1, ...],
-                          "(b h w) t c -> b t c h w",
-                          h=h,
-                          w=w),
+            s1a=rearrange(
+                embedding_s1[0, ...], "(b h w) t c-> b t c h w", h=h, w=w
+            ),
+            s1b=rearrange(
+                embedding_s1[1, ...], "(b h w) t c -> b t c h w", h=h, w=w
+            ),
+            s2a=rearrange(
+                embedding_s2[0, ...], "(b h w) t c -> b t c h w", h=h, w=w
+            ),
+            s2b=rearrange(
+                embedding_s2[1, ...], "(b h w) t c -> b t c h w", h=h, w=w
+            ),
         )
         rec = Rec(
-            s1a=RecWithOrigin(same_mod=s1_rec[3, ...],
-                              other_mod=s1_rec[0, ...]),
-            s1b=RecWithOrigin(same_mod=s1_rec[2, ...],
-                              other_mod=s1_rec[1, ...]),
-            s2a=RecWithOrigin(same_mod=s2_rec[1, ...],
-                              other_mod=s2_rec[2, ...]),
-            s2b=RecWithOrigin(same_mod=s2_rec[0, ...],
-                              other_mod=s2_rec[3, ...]),
+            s1a=RecWithOrigin(
+                same_mod=s1_rec[3, ...], other_mod=s1_rec[0, ...]
+            ),
+            s1b=RecWithOrigin(
+                same_mod=s1_rec[2, ...], other_mod=s1_rec[1, ...]
+            ),
+            s2a=RecWithOrigin(
+                same_mod=s2_rec[1, ...], other_mod=s2_rec[2, ...]
+            ),
+            s2b=RecWithOrigin(
+                same_mod=s2_rec[0, ...], other_mod=s2_rec[3, ...]
+            ),
         )
 
         return OutMMAliseF(repr=repr, rec=rec)
@@ -294,7 +306,9 @@ class AliseMM(TemplateModule, LightningModule):
     def shared_step(self, batch: BatchMMSits) -> OutMMAliseSharedStep:
         out_model = self.forward(batch)
         assert isinstance(batch, BatchMMSits)
-        tot_rec_loss = self.compute_rec_loss(batch=batch, rec=out_model.rec)
+        tot_rec_loss, despeckle_s1 = self.compute_rec_loss(
+            batch=batch, rec=out_model.rec
+        )
 
         inv_loss = self.invariance_loss(out_model.repr)
         if tot_rec_loss is None:
@@ -307,7 +321,9 @@ class AliseMM(TemplateModule, LightningModule):
                 w_inv=self.w_inv,
                 w_crossrec=self.w_crossrec,
             )
-        return OutMMAliseSharedStep(loss=global_loss, out_forward=out_model)
+        return OutMMAliseSharedStep(
+            loss=global_loss, out_forward=out_model, despeckle_s1=despeckle_s1
+        )
 
     def training_step(self, batch: BatchMMSits, batch_idx: int):
         out_shared_step = self.shared_step(batch)
@@ -337,48 +353,62 @@ class AliseMM(TemplateModule, LightningModule):
         )
         return out_shared_step.out_forward
 
-    def compute_rec_loss(self, batch: BatchMMSits, rec: Rec) -> TotalRecLoss:
+    def compute_rec_loss(
+        self, batch: BatchMMSits, rec: Rec
+    ) -> tuple[TotalRecLoss, DespeckleS1] | tuple[None, None]:
         assert isinstance(batch, BatchMMSits), f"batch is {batch}"
 
         valid_mask1a = create_mask_loss(
-            batch.sits1a.padd_index,
-            ~batch.sits1a.mask)  # in .mask True means pixel valid
+            batch.sits1a.padd_index, ~batch.sits1a.mask
+        )  # in .mask True means pixel valid
 
         valid_mask1b = create_mask_loss(
-            batch.sits1b.padd_index,
-            ~batch.sits1b.mask)  # in .mask True means pixel valid
+            batch.sits1b.padd_index, ~batch.sits1b.mask
+        )  # in .mask True means pixel valid
         valid_mask2a = create_mask_loss(
-            batch.sits2a.padd_index,
-            ~batch.sits2a.mask)  # in .mask True means pixel valid
+            batch.sits2a.padd_index, ~batch.sits2a.mask
+        )  # in .mask True means pixel valid
         valid_mask2b = create_mask_loss(
-            batch.sits2b.padd_index,
-            ~batch.sits2b.mask)  # in .mask True means pixel valid
+            batch.sits2b.padd_index, ~batch.sits2b.mask
+        )  # in .mask True means pixel valid
+        despeckle_s1a = despeckle_batch(
+            rearrange(batch.sits1a.sits, "b t c h w -> (b t ) c h w")
+        )
+        despeckle_s1a = rearrange(
+            despeckle_s1a, "(b t ) c h w -> b t c h w", b=self.bs
+        )
+        despeckle_s1b = despeckle_batch(
+            rearrange(batch.sits1b.sits, "b t c h w -> (b t ) c h w")
+        )
+        despeckle_s1b = rearrange(
+            despeckle_s1b, "(b t ) c h w -> b t c h w", b=self.bs
+        )
         if torch.sum(valid_mask1a) != 0:
             s1a_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
                     torch.masked_select(rec.s1a.same_mod, valid_mask1a),
-                    torch.masked_select(batch.sits1a.sits, valid_mask1a),
+                    torch.masked_select(despeckle_s1a, valid_mask1a),
                 ),
                 crossm_rec=self.rec_loss(
                     torch.masked_select(rec.s1a.other_mod, valid_mask1a),
-                    torch.masked_select(batch.sits1a.sits, valid_mask1a),
+                    torch.masked_select(despeckle_s1a, valid_mask1a),
                 ),
             )
         else:
-            return None
+            return None, None
         if torch.sum(valid_mask1b) != 0:
             s1b_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
                     torch.masked_select(rec.s1b.same_mod, valid_mask1b),
-                    torch.masked_select(batch.sits1b.sits, valid_mask1b),
+                    torch.masked_select(despeckle_s1b, valid_mask1b),
                 ),
                 crossm_rec=self.rec_loss(
                     torch.masked_select(rec.s1b.other_mod, valid_mask1b),
-                    torch.masked_select(batch.sits1b.sits, valid_mask1b),
+                    torch.masked_select(despeckle_s1b, valid_mask1b),
                 ),
             )
         else:
-            return None
+            return None, None
         if torch.sum(valid_mask2a) != 0:
             s2a_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
@@ -391,7 +421,7 @@ class AliseMM(TemplateModule, LightningModule):
                 ),
             )
         else:
-            return None
+            return None, None
         if torch.sum(valid_mask2b) != 0:
             s2b_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
@@ -404,14 +434,14 @@ class AliseMM(TemplateModule, LightningModule):
                 ),
             )
         else:
-            return None
+            return None, None
 
         return TotalRecLoss(
             s1_a=s1a_rec_loss,
             s1_b=s1b_rec_loss,
             s2_a=s2a_rec_loss,
             s2_b=s2b_rec_loss,
-        )
+        ), DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
 
     def invariance_loss(self, embeddings: LatRepr):
         creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
