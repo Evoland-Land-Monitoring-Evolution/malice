@@ -121,6 +121,7 @@ class MAECrossRecClb(ImageCallbacks):
         if opt == "s1a":
             trg = out_step.despeckle_s1.s1a
             pred = out_model.rec.s1a
+
         elif opt == "s1b":
             trg = out_step.despeckle_s1.s1b
             pred = out_model.rec.s1b
@@ -145,6 +146,8 @@ class MAECrossRecClb(ImageCallbacks):
         trg, pred = self.extract_per_view(batch=batch,
                                           out_step=out_model,
                                           opt=opt)
+        margin=(pred.same_mod.shape[-1]-trg.shape[-1])//2
+            
         # print(f"in clb tragte {trg[0,0,0,...]}")
         if "s1" in opt:
             stats = None
@@ -152,26 +155,29 @@ class MAECrossRecClb(ImageCallbacks):
             stats = tuple_stats[0]
         else:
             stats = tuple_stats[1]
+            
         if stats is not None:
             unscale_trg = unscale_data(
                 stats,
                 trg[0, :self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
+
             unscale_mnm = unscale_data(
                 stats,
-                pred.same_mod[0, :self.n_images, ...].cpu(),
+                pred.same_mod[0, :self.n_images,...].cpu(),
             )[:, self.plot_bands, ...]
             unscale_crm = unscale_data(
                 stats,
-                pred.other_mod[0, :self.n_images, ...].cpu(),
+                pred.other_mod[0, :self.n_images,...].cpu(),
             )[:, self.plot_bands, ...]
         else:
             # print(f"in callbakcs {trg[0, 0, 0, ...]}")
+            #TODO improve margin ... 
             unscale_trg = trg[0, :self.n_images, self.plot_bands, ...].cpu()
             unscale_mnm = pred.same_mod[0, :self.n_images, self.plot_bands,
-                                        ...].cpu()
+                                        margin:-margin,margin:-margin].cpu()
             unscale_crm = pred.other_mod[0, :self.n_images, self.plot_bands,
-                                         ...].cpu()
+                                         margin:-margin,margin:-margin].cpu()
         # print(f"in callbakcs {unscale_trg[0,0, ...]}")
         OutVisu = namedtuple("OutVisu", ["trg", "mnm", "crm"])
         torch.save(unscale_trg, f"{opt}_out_visu.pt")

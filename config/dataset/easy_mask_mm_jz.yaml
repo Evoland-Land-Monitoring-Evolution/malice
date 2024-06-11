@@ -1,0 +1,22 @@
+train:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
+  directory: /gpfswork/rech/wfi/ubc65oh/dataset/MMDC_OE/PT_FORMAT_MM3/train  
+  crop_type: Random
+  s2_tile: [30TXT]
+  modalities: [s2,s1_asc]
+  max_len: 60
+val:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
+  directory: /gpfswork/rech/wfi/ubc65oh/dataset/MMDC_OE/PT_FORMAT_MM3/train  
+  crop_type: Center
+  s2_tile: [30TXT]
+  modalities: [s2,s1_asc]
+  max_len: 60
+
+test:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDataset
+  directory: /gpfswork/rech/wfi/ubc65oh/dataset/MMDC_OE/PT_FORMAT_MM3/train
+  crop_type: Center
+  s2_tile: [30TXT]
+  modalities: [s2,s1_asc]
+  max_len: 60
