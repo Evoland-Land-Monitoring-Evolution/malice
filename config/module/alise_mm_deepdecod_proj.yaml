@@ -1,0 +1,77 @@
+_target_: mmmv_ssl.module.alise_mm.AliseMM
+encodeur_s1:
+    _target_: mt_ssl.model.ubarn_repr_encoder.UBarnReprEncoder
+    ubarn:
+      _target_: mt_ssl.model.ubarn.UBarn
+      ne_layers: 3
+      d_model: 64
+      d_hidden: 128
+      dropout: 0.1
+      block_name: pff
+      norm_first: false
+      nhead: 4
+      attn_dropout: 0.1
+      encoding_config:
+        _target_: mt_ssl.model.utae_unet.Unet
+        encoder_widths: [ 64,64,64,128 ]
+        decoder_widths: [ 32,32,64,128 ]
+        encoder_norm: "group"
+        padding_mode: "reflect"
+        decoding_norm: "batch"
+        return_maps: false
+        str_conv_k: 4
+        str_conv_s: 2
+        str_conv_p: 1
+        border_size: 0
+        skip_conv_norm: "batch"
+encodeur_s2:
+    _target_: mt_ssl.model.ubarn_repr_encoder.UBarnReprEncoder
+    ubarn:
+      _target_: mt_ssl.model.ubarn.UBarn
+      ne_layers: 3
+      d_model: 64
+      d_hidden: 128
+      dropout: 0.1
+      block_name: pff
+      norm_first: false
+      nhead: 4
+      attn_dropout: 0.1
+      encoding_config:
+        _target_: mt_ssl.model.utae_unet.Unet
+        encoder_widths: [ 64,64,64,128 ]
+        decoder_widths: [ 32,32,64,128 ]
+        encoder_norm: "group"
+        padding_mode: "reflect"
+        decoding_norm: "batch"
+        return_maps: false
+        str_conv_k: 4
+        str_conv_s: 2
+        str_conv_p: 1
+        border_size: 0
+        skip_conv_norm: "batch"
+common_temp_proj:
+    _target_: mmmv_ssl.model.temp_proj.TemporalProjector
+    num_heads: 2
+    n_q: 10
+decodeur:
+    _target_: mmmv_ssl.model.decodeur.MetaDecoder
+    num_heads: 2
+    d_k: 32
+    intermediate_layers:
+      config:
+        _target_: mmmv_ssl.model.transformer.TransformerBlockConfig
+        n_layers: 1
+        d_model: 64
+        d_in: 128
+        norm_first: False
+        n_head: 4
+pe_config:
+    _target_: mmmv_ssl.model.encoding.PositionalEncoder
+projector:	
+    _target_: mmmv_ssl.model.projector.AliseProj
+    l_dim: [64]
+    out_channels: 64
+    freeze: true
+d_repr: 64
+query_s1s2_d: 16
+pe_channels: 64
