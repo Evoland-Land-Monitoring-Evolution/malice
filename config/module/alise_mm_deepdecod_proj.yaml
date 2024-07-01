@@ -67,7 +67,7 @@ decodeur:
         n_head: 4
 pe_config:
     _target_: mmmv_ssl.model.encoding.PositionalEncoder
-projector:	
+projector:
     _target_: mmmv_ssl.model.projector.AliseProj
     l_dim: [64]
     out_channels: 64
