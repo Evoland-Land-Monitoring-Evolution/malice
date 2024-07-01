@@ -47,7 +47,7 @@ class PretrainingMMMaskDataset(UnlabeledDataset):
         sits_s1 = rearrange(out_item.s1_asc.sits,
                             "c t h w-> t c h w")[:, [0, 1], ...]
         ratio = sits_s1[:, [0], ...] / sits_s1[:, [1], ...]
-        sits_s1 = torch.log(torch.cat([sits_s1, ratio], dim=1))
+        sits_s1 = torch.log(torch.cat([sits_s1[:,[0,1],...], ratio], dim=1)) #first two bands vv,vh then incidence angle
         s1 = SITSOneMod(
             sits=sits_s1,
             input_doy=out_item.s1_asc.doy,
