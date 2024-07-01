@@ -1,0 +1,47 @@
+w_rec: 1
+w_var: 0
+w_inv: 1
+w_cov: 1
+rec_loss:
+  _target_: torch.nn.MSELoss
+
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
+  T_0: 2
+  T_mult: 2
+
+
+optimizer_monitor: val_total_loss
+
+trainer:
+  _target_: lightning.pytorch.Trainer
+  log_every_n_steps: 10
+  num_nodes: 1
+  devices: 2
+  accelerator: gpu
+  deterministic: false
+  enable_model_summary: false
+  max_epochs: 270
+  min_epochs: 260
+  detect_anomaly: true
+  accumulate_grad_batches: 1
+  limit_val_batches: 1.0
+  limit_train_batches: 1.0
+  check_val_every_n_epoch: 1
+  profiler: simple
+  precision: bf16
+  strategy:
+    _target_: lightning.pytorch.strategies.DDPStrategy
+    find_unused_parameters: true
+batch_size: 2
+return_attns: true
+lr: 0.05
+seed: 1
+
+optimizer:
+  _target_: torch.optim.Adam
+profiler: null
+matmul_prec: high
+
+slurm_restart: true

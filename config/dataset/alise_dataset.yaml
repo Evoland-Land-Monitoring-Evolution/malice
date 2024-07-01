@@ -1,0 +1,33 @@
+train:
+  _target_: mt_ssl.data.dataset.multiview_dataset.MVWindowDataset
+  opt: interpol
+  directory: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3/train
+  crop_type: "Center"
+  s2_tile: [30TXT,31TDL,31TEN, 32TPQ, 32TPT,32UMB,32UQD,33TVM,33TYJ,33UXR,34TFR,34UEC]
+  s2_max_ccp: 0.5
+  modalities: ["s2"]
+  t_w: 5
+  extract_true_doy: true
+  list_tw_randm: [1, 5]
+val:
+  _target_: mt_ssl.data.dataset.multiview_dataset.MVWindowDataset
+  directory: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3/val
+  opt: interpol
+  crop_type: "Center"
+  s2_tile: ["30TYR","31TEK","32TNR","32UPC","33TXK","34UDB"]
+  s2_max_ccp: 0.5
+  modalities: ["s2"]
+  t_w: 5
+  extract_true_doy: true
+  list_tw_randm: [1,5]
+test:
+  _target_: mt_ssl.data.dataset.multiview_dataset.MVWindowDataset
+  opt: interpol
+  directory: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3/val
+  crop_type: "Center"
+  s2_tile: ["30TYR","31TEK","32TNR","32UPC","33TXK","34UDB"]
+  s2_max_ccp: 0.5
+  modalities: ["s2"]
+  t_w: 5
+  extract_true_doy: true
+  list_tw_randm: [1,5]

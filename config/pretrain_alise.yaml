@@ -1,0 +1,27 @@
+defaults:
+  - _self_
+  - datamodule: datamodule_alise.yaml
+  - module : alise_pretraining.yaml
+  - train: train_mv_pretraining.yaml
+  - callbacks: minimal.yaml
+  - logger: default.yaml
+  - dataset: alise_dataset.yaml
+  - override_petrain_model_params: null
+hydra:
+  run:
+    dir: ${path_run_dir}/true_requeue
+  sweep:
+    dir: ${path_export_dir}${hydra.job.name}/requeue
+    subdir: ${hydra.job.override_dirname}
+  job:
+    name: alise
+path_run_dir: ${path_export_dir}/${hydra.job.name}/max_len${datamodule.datamodule.max_len}_w${dataset.train.t_w}/alise_lay${module.repr_encoder.ubarn.ne_layers}_dmodel${module.d_repr}_hid${module.repr_encoder.ubarn.d_hidden}lq_nq${module.repr_encoder.n_queries}_tpnh${module.repr_encoder.temp_proj.n_head}/wrec_${train.w_rec}_winv_${train.w_inv}_wvar_${train.w_var}_wcov_${train.w_cov}_proj${module.projector.d_out}/bs_${train.batch_size}_${train.trainer.precision}
+load_model: false
+path_dir_model: /home/ad/dumeuri/trainings/pretrain_comparison
+dir_training: max_len60_len_in30/2023-06-16_09-27-43
+seed: 1
+compile: false
+path_export_dir: /home/ad/dumeuri/trainings/mt_ssl
+verbose: 0
+load_pretrain_model: false
+pretrain_model_path: null
