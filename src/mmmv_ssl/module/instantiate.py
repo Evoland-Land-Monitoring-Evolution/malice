@@ -1,11 +1,22 @@
+import logging
+
+import torch
 from hydra.utils import instantiate
+from mt_ssl.data.datamodule.pastis_datamodule import PASTISDataModule
+from mt_ssl.module.template_ft_module import FTParams
+from mt_ssl.utils.open import find_file, find_good_ckpt, open_yaml
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
 
+from mmmv_ssl.data.datamodule.mm_datamodule import MMMaskDataModule
 from mmmv_ssl.model.config import ProjectorConfig, UTAEConfig
 from mmmv_ssl.model.projector import MMProjector
+from mmmv_ssl.module.alise_mm import AliseMM
+from mmmv_ssl.module.fine_tune import FineTuneOneMod
 from mmmv_ssl.module.vicregl_ssl import LVicRegModule
 from mmmv_ssl.train.config import VicRegTrainConfig
+
+my_logger = logging.getLogger(__name__)
 
 
 def instantiate_vicregssl_module(
@@ -43,3 +54,117 @@ def instantiate_vicregssl_module(
         projector_bottleneck=projector_bottleneck,
         projector_local=projector_local,
     )
+
+
+def instantiate_fs_seg_module(
+    myconfig: DictConfig,
+    path_ckpt: None | str = None,
+    load_ours: bool = False,
+):
+    datamodule = instantiate(
+        myconfig.datamodule.datamodule,
+        config_dataset=myconfig.dataset,
+        batch_size=myconfig.train.batch_size,
+        _recursive_=False,
+    )
+    # if not torch.cuda.is_available():
+    #     load_params = {"map_location": torch.device("cpu")}
+    # else:
+    #     load_params = {}
+    if path_ckpt is not None:
+        raise NotImplementedError
+    else:
+        pl_module = instantiate(
+            myconfig.module,
+            train_config=myconfig.train,
+            input_channels=datamodule.num_channels,
+            num_classes=datamodule.num_classes,
+            stats=datamodule.s2_transform.stats,
+            _recursive_=False,
+        )
+    return pl_module, datamodule
+
+
+def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
+    if path_ckpt is not None:
+        pl_module = pl_module.load_from_checkpoint(path_ckpt)
+
+    return pl_module
+
+
+def instantiate_pretrained_module(
+    myconfig: DictConfig, path_ckpt: str | None = None
+):
+    datamodule: PASTISDataModule = instantiate(
+        myconfig.datamodule.datamodule,
+        config_dataset=myconfig.dataset,
+        batch_size=myconfig.train.batch_size,
+        _recursive_=False,
+    )  # TODO change for various downstream tasks
+    if not torch.cuda.is_available():
+        load_params = {"map_location": torch.device("cpu")}
+    else:
+        load_params = {}
+
+    pretrain_config_file_path = find_file(
+        myconfig.dwnd_params.path_dir_model,
+        myconfig.dwnd_params.dir_training,
+    )
+    pretrain_module_config = DictConfig(open_yaml(pretrain_config_file_path))
+    d_model = None
+    my_logger.info(f"Found {pretrain_config_file_path}")
+
+    old_datamodule: MMMaskDataModule = instantiate(
+        pretrain_module_config.datamodule.datamodule,
+        config_dataset=pretrain_module_config.dataset,
+        batch_size=pretrain_module_config.train.batch_size,
+        _recursive_=False,
+    )
+    pretrained_pl_module: AliseMM = instantiate(
+        myconfig.module,
+        train_config=myconfig.train,
+        input_channels=old_datamodule.num_channels,
+        stats=(
+            old_datamodule.all_transform.s2.stats,
+            old_datamodule.all_transform.s1_asc.stats,
+        ),  # TODO do better than that load stats of each mod
+        _recursive_=False,
+    )
+    if myconfig.dwnd_params.load_model:
+        pretrain_module_ckpt_path = find_good_ckpt(
+            myconfig.dwnd_params.path_dir_model,
+            myconfig.dwnd_params.dir_training,
+            metric_name=myconfig.dwnd_params.ckpt_type,
+        )
+    else:
+        my_logger.info("Model randomly intialized")
+        pretrain_module_ckpt_path = None
+    ft_params = FTParams(
+        pl_module=pretrained_pl_module,
+        no_model=myconfig.dwnd_params.no_pretrain_model,
+        ckpt_path=pretrain_module_ckpt_path,
+        freeze_representation_encoder=myconfig.dwnd_params.freeze_representation_encoder,
+        pretrain_module_config=pretrain_module_config,
+        d_model=d_model,
+    )
+    if path_ckpt is not None:
+        pl_module: FineTuneOneMod = FineTuneOneMod.load_from_checkpoint(
+            path_ckpt,
+            ft_params=ft_params,
+            **load_params,
+        )
+    else:
+        my_logger.debug(myconfig.module)
+        my_logger.debug(myconfig.train)
+        my_logger.debug(ft_params)
+        ft_params.pretrain_module_config["path_run_dir"] = None
+        pl_module: FineTuneOneMod = instantiate(
+            myconfig.module,
+            train_config=myconfig.train,
+            input_channels=datamodule.num_channels,
+            ft_params=ft_params,
+            num_classes=datamodule.num_classes,
+            _recursive_=False,
+        )
+    del pretrained_pl_module
+    return pl_module, datamodule

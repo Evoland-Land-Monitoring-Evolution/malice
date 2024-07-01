@@ -43,7 +43,7 @@ class AliseMM(TemplateModule, LightningModule):
         train_config,
         input_channels: MMChannels,
         pe_config: DictConfig | PositionalEncoder,
-        stats: None | Stats = None,
+        stats: None | tuple[Stats, Stats] = None,
         d_repr: int = 64,
         query_s1s2_d: int = 64,
         pe_channels: int = 64,
