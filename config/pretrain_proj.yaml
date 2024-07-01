@@ -1,7 +1,7 @@
 defaults:
   - _self_
   - datamodule: mask_mm.yaml
-  - module : alise_mm.yaml
+  - module : alise_mm_proj.yaml
   - train: pretrain_ssl.yaml
   - callbacks: minimal.yaml
   - logger: default.yaml
@@ -14,7 +14,7 @@ hydra:
     subdir: ${hydra.job.override_dirname}
   job:
     name: mm_mae_sd
-path_run_dir: ${path_export_dir}/${hydra.job.name}/wrec${train.w_rec}_winv${train.w_inv}_wcr${train.w_crossrec}/bs${train.batch_size}/seed${seed}
+path_run_dir: ${path_export_dir}/${hydra.job.name}/wrec${train.w_rec}_winv${train.w_inv}_wcr${train.w_crossrec}/bs${train.batch_size}/proj_freeze${module.projector.freeze}/seed${seed}
 load_model: false
 path_dir_model: null
 dir_training: null

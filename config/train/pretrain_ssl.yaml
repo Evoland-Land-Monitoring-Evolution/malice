@@ -23,10 +23,10 @@ trainer:
   deterministic: false
   enable_model_summary: false
   max_epochs: 1000
-  min_epochs: 265
+  min_epochs: 500
   detect_anomaly: true
   accumulate_grad_batches: 1
-  limit_val_batches: 0.1
+  limit_val_batches: 1.0
   limit_train_batches: 1.0
   check_val_every_n_epoch: 1
   profiler: simple

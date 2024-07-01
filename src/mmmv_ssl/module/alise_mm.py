@@ -132,7 +132,7 @@ class AliseMM(TemplateModule, LightningModule):
             self.projector_emb = IdentityProj()
         else:
             self.projector_emb = projector
-
+        self.save_hyperparameters()
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         h = batch.sits2a.h
         w = batch.sits2a.w
@@ -443,7 +443,7 @@ class AliseMM(TemplateModule, LightningModule):
                 ),
             )
         else:
-            return None, None
+            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
         if torch.sum(valid_mask1b) != 0:
             valid_mask1b = valid_mask1b[
                 ...,
@@ -475,7 +475,7 @@ class AliseMM(TemplateModule, LightningModule):
                 ),
             )
         else:
-            return None, None
+            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
         if torch.sum(valid_mask2a) != 0:
             s2a_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
@@ -488,7 +488,7 @@ class AliseMM(TemplateModule, LightningModule):
                 ),
             )
         else:
-            return None, None
+            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
         if torch.sum(valid_mask2b) != 0:
             s2b_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
@@ -501,7 +501,7 @@ class AliseMM(TemplateModule, LightningModule):
                 ),
             )
         else:
-            return None, None
+            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
 
         return TotalRecLoss(
             s1_a=s1a_rec_loss,
