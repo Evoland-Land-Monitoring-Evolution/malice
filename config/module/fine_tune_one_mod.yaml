@@ -1,0 +1,3 @@
+_target_: mmmmv_ssl.module.fine_tune.FineTuneOneMod
+mod: s2
+decoder_type: linear

@@ -121,8 +121,8 @@ def instantiate_pretrained_module(
         _recursive_=False,
     )
     pretrained_pl_module: AliseMM = instantiate(
-        myconfig.module,
-        train_config=myconfig.train,
+        pretrain_module_config.module,
+        train_config=pretrain_module_config.train,
         input_channels=old_datamodule.num_channels,
         stats=(
             old_datamodule.all_transform.s2.stats,

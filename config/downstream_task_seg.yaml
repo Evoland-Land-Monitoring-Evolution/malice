@@ -6,6 +6,7 @@ defaults:
   - datamodule: pastis_jz.yaml
   - dataset: pastis_oe_f1.yaml
   - dwnd_params: ft_params_mv
+  - module: fine_tune_one_mod.yaml
 checkpoint_dir: null
 checkpoint_tr: null
 metrics_pretrained: last
