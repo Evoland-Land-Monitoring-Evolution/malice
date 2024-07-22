@@ -1,0 +1,14 @@
+defaults:
+  - _self_
+  - train: train_ft.yaml
+  - callbacks: minimal_downstream.yaml
+  - logger: default.yaml
+  - datamodule: pastis_jz.yaml
+  - dataset: pastis_oe_f1.yaml
+  - dwnd_params: ft_params_mv
+checkpoint_dir: null
+checkpoint_tr: null
+metrics_pretrained: last
+fully_supervised: false
+seed: 0
+compile: false

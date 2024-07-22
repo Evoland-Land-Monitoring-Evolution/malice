@@ -1,0 +1,27 @@
+train:
+  _target_: mt_ssl.data.dataset.pastis_oe.PASTIS_Dataset_OE
+  dataset_path:  /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+  norm: false
+  crop_size: 64
+  crop_type: Random
+  remove_2018: false
+  folds: [1,2,3]
+  extract_true_doy: true
+val:
+  _target_: mt_ssl.data.dataset.pastis_oe.PASTIS_Dataset_OE
+  dataset_path: /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+  norm: false
+  crop_size: 64
+  crop_type: Center
+  remove_2018: false
+  folds: [4]
+  extract_true_doy: true
+test:
+  _target_: mt_ssl.data.dataset.pastis_oe.PASTIS_Dataset_OE
+  dataset_path: /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+  norm: false
+  crop_size: 64
+  crop_type: Center
+  remove_2018: false
+  folds: [5]
+  extract_true_doy: true

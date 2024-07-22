@@ -1,0 +1,7 @@
+no_pretrain_model: false
+path_dir_model: /home/ad/dumeuri/scratch/trainings/mt_ssl/multiview/interpol_max_len60/ubarn_mtan/mtan_gradTrue_ubarn_gradTrue_wrec_1_winv_0_wvar_0_wcov_0
+dir_training: 2023-11-10_14-33-22
+load_model: true
+freeze_representation_encoder: true
+ckpt_type: last
+d_model: 400
