@@ -21,8 +21,7 @@ from torchmetrics import MetricCollection
 
 from mmmv_ssl.model.sits_encoder import MonoSITSEncoder
 from mmmv_ssl.model.utils import build_encoder
-from mmmv_ssl.module.alise_mm import AliseMM
-from mmmv_ssl.module.instantiate import load_malice
+from mmmv_ssl.module.alise_mm import AliseMM, load_malice
 
 my_logger = logging.getLogger(__name__)
 

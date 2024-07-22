@@ -85,13 +85,6 @@ def instantiate_fs_seg_module(
     return pl_module, datamodule
 
 
-def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
-    if path_ckpt is not None:
-        pl_module = pl_module.load_from_checkpoint(path_ckpt)
-
-    return pl_module
-
-
 def instantiate_pretrained_module(
     myconfig: DictConfig, path_ckpt: str | None = None
 ):

@@ -133,6 +133,7 @@ class AliseMM(TemplateModule, LightningModule):
         else:
             self.projector_emb = projector
         self.save_hyperparameters()
+
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         h = batch.sits2a.h
         w = batch.sits2a.w
@@ -523,3 +524,10 @@ class AliseMM(TemplateModule, LightningModule):
             map_params = {}
         ckpt = torch.load(path_ckpt, **map_params)
         self.load_state_dict(ckpt["state_dict"], strict=strict)
+
+
+def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
+    if path_ckpt is not None:
+        pl_module = pl_module.load_from_checkpoint(path_ckpt)
+
+    return pl_module
