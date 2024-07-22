@@ -7,9 +7,21 @@ defaults:
   - dataset: pastis_oe_f1.yaml
   - dwnd_params: ft_params_mv
   - module: fine_tune_one_mod.yaml
+hydra:
+  run:
+    dir: ${path_export_dir}/${hydra.job.name}/fine_tune${dwnd_params.dir_training}/no_pretrain_model${dwnd_params.no_pretrain_model}_load_model_${dwnd_params.load_model}_freeze_${dwnd_params.freeze_representation_encoder}/val${dataset.val.folds}/training_folds${dataset.train.folds}${suffix}/requeue
+  sweep:
+    dir: ${path_export_dir}${hydra.job.name}/requeue
+    subdir: ${hydra.job.override_dirname}
+  job:
+    name: fine_tune
+path_export_dir: /home/ad/dumeuri/trainings/pastis_classif
 checkpoint_dir: null
 checkpoint_tr: null
+precise_ckpt_path: null
 metrics_pretrained: last
 fully_supervised: false
 seed: 0
 compile: false
+suffix: all
+verbose: 0

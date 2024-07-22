@@ -59,6 +59,7 @@ class FineTuneOneMod(TemplateClassifModule):
                 pretrained_module=pretrained_module, mod=mod
             )
             self.repr_encoder.train()
+        self.d_model=self.repr_encoder.d_model
         if mod == "s1":
             self.stats = pretrained_module.stats[1]
         elif mod == "s2":
@@ -153,6 +154,16 @@ class FineTuneOneMod(TemplateClassifModule):
         )
         loss = out_shared_step.loss
         if not torch.isnan(out_shared_step.loss):
+            metrics={}
+            metrics["val_loss"] = loss.item()
+                        
+            self.log_dict(
+                metrics,
+                on_epoch=True,
+                on_step=True,
+                batch_size=self.bs,
+                prog_bar=True,
+            )
             r_pred = out_shared_step.pred_flatten.detach()
             r_trg = out_shared_step.trg_flatten.detach()
             my_loss = loss.item()
@@ -170,3 +181,26 @@ class FineTuneOneMod(TemplateClassifModule):
             for k, v in outputs.items()
         }
         self.save_test_metrics = outputs
+
+    def training_step(self, batch: ClassifBInput, batch_idx):
+        # my_logger.info("train step start {}".format(torch.cuda.memory_allocated()))
+        out_shared_step = self.shared_step(
+            batch, batch_idx, loss_fun=self.train_loss
+        )
+        loss = out_shared_step.loss
+        metrics={}
+        if not torch.isnan(out_shared_step.loss):
+
+            metrics["train_loss"] = loss.item()
+
+            self.log_dict(
+                metrics,
+                on_epoch=True,
+                on_step=True,
+                batch_size=self.bs,
+                prog_bar=True,
+            )
+            # my_logger.info("train step end {}".format(torch.cuda.memory_allocated()))
+            return loss
+
+        return None

@@ -58,7 +58,7 @@ class MonoSITSEncoder(TemplateReprEncoder, ABC):
     def forward_keep_input_dim(
         self, batch_input: ClassifBInput, returns_attns: bool = False
     ) -> BOutputReprEnco:
-        b, b, c, h, w = batch_input.sits.shape
+        b, n, c, h, w = batch_input.sits.shape
         out = self.forward(batch_input)
         repr = rearrange(
             out.repr,

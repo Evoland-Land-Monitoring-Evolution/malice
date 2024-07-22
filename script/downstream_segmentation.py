@@ -6,7 +6,7 @@ import hydra
 import torch
 from hydra.utils import instantiate
 from lightning import seed_everything
-from lightning_fabric.plugins.environments import SLURMEnvironment
+from lightning.pytorch.plugins.environments import SLURMEnvironment
 from mt_ssl.logs.logs import log_hyperparameters
 from mt_ssl.utils.open import find_file, find_good_ckpt, open_yaml
 from omegaconf import DictConfig
@@ -54,11 +54,12 @@ def main(myconfig: DictConfig):
         config_path = find_file(
             myconfig.checkpoint_dir, myconfig.checkpoint_tr
         )
-        ckpt_path = find_good_ckpt(
-            myconfig.checkpoint_dir,
-            myconfig.checkpoint_tr,
-            myconfig.metrics_pretrained,
-        )
+        ckpt_path=Path(myconfig.checkpoint_dir).joinpath(myconfig.checkpoint_tr).joinpath(myconfig.precise_ckpt_path)
+        # ckpt_path = find_good_ckpt(
+        #     myconfig.checkpoint_dir,
+        #     myconfig.checkpoint_tr,
+        #     myconfig.metrics_pretrained,
+        # )
         myconfig = DictConfig(open_yaml(config_path))
         print(f"We are loading {ckpt_path}")
     else:
@@ -89,3 +90,8 @@ def main(myconfig: DictConfig):
     else:
         my_trainer.fit(pl_module, datamodule=datamodule, ckpt_path=ckpt_path)
     my_trainer.test(pl_module)
+if __name__ == "__main__":
+    torch.backends.cuda.enable_mem_efficient_sdp(False)
+    torch.backends.cuda.enable_flash_sdp(False)
+    torch.backends.cuda.enable_math_sdp(True)
+    main()

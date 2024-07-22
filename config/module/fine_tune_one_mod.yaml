@@ -1,3 +1,5 @@
-_target_: mmmmv_ssl.module.fine_tune.FineTuneOneMod
+_target_: mmmv_ssl.module.fine_tune.FineTuneOneMod
 mod: s2
+decoder_config:
+  _target_: mt_ssl.model.convolutionalblock.LastBlock
 decoder_type: linear
