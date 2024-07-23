@@ -365,7 +365,7 @@ class AliseMM(TemplateModule, LightningModule):
     def validation_step(self, batch: BatchMMSits, batch_idx: int):
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:
-            return out_shared_step
+            return None
         self.log_dict(
             out_shared_step.loss.to_dict(suffix="val"),
             on_epoch=True,

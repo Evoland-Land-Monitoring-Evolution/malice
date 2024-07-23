@@ -12,19 +12,18 @@ from torch import Tensor
 
 from mmmv_ssl.data.dataclass import BatchMMSits
 from mmmv_ssl.module.alise_mm import AliseMM
-from mmmv_ssl.module.dataclass import OutMMAliseF,OutMMAliseSharedStep
+from mmmv_ssl.module.dataclass import OutMMAliseSharedStep
 
 
 class ImageCallbacks(Callback):
-
     def __init__(
-            self,
-            n_images,
-            plot_bands=None,
-            normalize=False,
-            value_range=(100, 3000),
-            q=0.05,
-            batch_max: int = 10,
+        self,
+        n_images,
+        plot_bands=None,
+        normalize=False,
+        value_range=(100, 3000),
+        q=0.05,
+        batch_max: int = 10,
     ):
         super().__init__()
         if plot_bands is None:
@@ -80,7 +79,6 @@ class ImageCallbacks(Callback):
 
 
 class MAECrossRecClb(ImageCallbacks):
-
     def __init__(
         self,
         n_images,
@@ -91,8 +89,9 @@ class MAECrossRecClb(ImageCallbacks):
         batch_max: int = 10,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
-        super().__init__(n_images, plot_bands, normalize, value_range, q,
-                         batch_max)
+        super().__init__(
+            n_images, plot_bands, normalize, value_range, q, batch_max
+        )
         self.opt = opt
 
     def on_validation_batch_end(
@@ -104,20 +103,21 @@ class MAECrossRecClb(ImageCallbacks):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        images_bf = self.show_reconstructions(outputs,
-                                              tuple_stats=pl_module.stats,
-                                              opt=self.opt,
-                                              batch=batch)
+        if outputs is None:
+            return None
+        images_bf = self.show_reconstructions(
+            outputs, tuple_stats=pl_module.stats, opt=self.opt, batch=batch
+        )
         final_grid_bf = self.make_grid(images_bf)
         self.load_grid_logger(final_grid_bf, trainer, description=self.opt)
 
     def extract_per_view(
         self,
         batch: BatchMMSits,
-            out_step: OutMMAliseSharedStep,
+        out_step: OutMMAliseSharedStep,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
-        out_model=out_step.out_forward
+        out_model = out_step.out_forward
         if opt == "s1a":
             trg = out_step.despeckle_s1.s1a
             pred = out_model.rec.s1a
@@ -138,16 +138,16 @@ class MAECrossRecClb(ImageCallbacks):
     def show_reconstructions(
         self,
         out_model: OutMMAliseSharedStep,
-        tuple_stats: tuple[Stats,Stats],
+        tuple_stats: tuple[Stats, Stats],
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
         export_doy: bool = False,
         batch: BatchMMSits | None = None,
     ):
-        trg, pred = self.extract_per_view(batch=batch,
-                                          out_step=out_model,
-                                          opt=opt)
-        margin=(pred.same_mod.shape[-1]-trg.shape[-1])//2
-            
+        trg, pred = self.extract_per_view(
+            batch=batch, out_step=out_model, opt=opt
+        )
+        margin = (pred.same_mod.shape[-1] - trg.shape[-1]) // 2
+
         # print(f"in clb tragte {trg[0,0,0,...]}")
         if "s1" in opt:
             stats = None
@@ -155,29 +155,39 @@ class MAECrossRecClb(ImageCallbacks):
             stats = tuple_stats[0]
         else:
             stats = tuple_stats[1]
-            
+
         if stats is not None:
             unscale_trg = unscale_data(
                 stats,
-                trg[0, :self.n_images, ...].cpu(),
+                trg[0, : self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
 
             unscale_mnm = unscale_data(
                 stats,
-                pred.same_mod[0, :self.n_images,...].cpu(),
+                pred.same_mod[0, : self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
             unscale_crm = unscale_data(
                 stats,
-                pred.other_mod[0, :self.n_images,...].cpu(),
+                pred.other_mod[0, : self.n_images, ...].cpu(),
             )[:, self.plot_bands, ...]
         else:
             # print(f"in callbakcs {trg[0, 0, 0, ...]}")
-            #TODO improve margin ... 
-            unscale_trg = trg[0, :self.n_images, self.plot_bands, ...].cpu()
-            unscale_mnm = pred.same_mod[0, :self.n_images, self.plot_bands,
-                                        margin:-margin,margin:-margin].cpu()
-            unscale_crm = pred.other_mod[0, :self.n_images, self.plot_bands,
-                                         margin:-margin,margin:-margin].cpu()
+            # TODO improve margin ...
+            unscale_trg = trg[0, : self.n_images, self.plot_bands, ...].cpu()
+            unscale_mnm = pred.same_mod[
+                0,
+                : self.n_images,
+                self.plot_bands,
+                margin:-margin,
+                margin:-margin,
+            ].cpu()
+            unscale_crm = pred.other_mod[
+                0,
+                : self.n_images,
+                self.plot_bands,
+                margin:-margin,
+                margin:-margin,
+            ].cpu()
         # print(f"in callbakcs {unscale_trg[0,0, ...]}")
         OutVisu = namedtuple("OutVisu", ["trg", "mnm", "crm"])
         torch.save(unscale_trg, f"{opt}_out_visu.pt")
@@ -206,7 +216,6 @@ class MAECrossRecClb(ImageCallbacks):
 
 
 class EmbeddingsVisu(ImageCallbacks):
-
     def __init__(
         self,
         n_images,
@@ -217,8 +226,9 @@ class EmbeddingsVisu(ImageCallbacks):
         batch_max: int = 10,
         opt: Literal["s1a", "s1b", "s2a", "s2b"] = "s1a",
     ):
-        super().__init__(n_images, plot_bands, normalize, value_range, q,
-                         batch_max)
+        super().__init__(
+            n_images, plot_bands, normalize, value_range, q, batch_max
+        )
         self.opt = opt
 
     def on_validation_batch_end(
@@ -230,7 +240,9 @@ class EmbeddingsVisu(ImageCallbacks):
         batch_idx: int,
         dataloader_idx: int = 0,
     ) -> None:
-        outputs=outputs.out_forward
+        if outputs is None:
+            return None
+        outputs = outputs.out_forward
         if self.opt == "s2a":
             repr = outputs.repr.s2a
         elif self.opt == "s1b":
@@ -241,7 +253,7 @@ class EmbeddingsVisu(ImageCallbacks):
             repr = outputs.repr.s2b
         else:
             raise NotImplementedError
-        images = repr[0, :self.n_images, [0, 1, 2], ...].cpu().float()
+        images = repr[0, : self.n_images, [0, 1, 2], ...].cpu().float()
         grid = torchvision.utils.make_grid(
             images,
             nrow=self.n_images,
@@ -249,6 +261,6 @@ class EmbeddingsVisu(ImageCallbacks):
             value_range=self.value_range,
         )
 
-        self.load_grid_logger(grid,
-                              trainer,
-                              description=f"Embedding {self.opt}")
+        self.load_grid_logger(
+            grid, trainer, description=f"Embedding {self.opt}"
+        )
