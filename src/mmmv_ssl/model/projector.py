@@ -70,7 +70,6 @@ class AliseProj(ProjectorTemplate):
         out_channels: int,
         l_dim: list = None,
         freeze=False,
-        norm_layer="batch_norm",
     ):
         super().__init__(input_channels, out_channels)
         self.freeze = freeze
@@ -81,14 +80,10 @@ class AliseProj(ProjectorTemplate):
             self.l_dim = [input_channels] + [out_channels]
         layers = []
         for i in range(len(self.l_dim) - 2):
-            if norm_layer == "batch_norm":
-                norm_l=nn.BatchNorm1d(self.l_dim[i + 1])
-            elif norm_layer == "layer_norm":
-                norm_l=nn.LayerNorm(self.l_dim[i + 1])
             layers.extend(
                 [
                     nn.Linear(self.l_dim[i], self.l_dim[i + 1]),
-                    norm_l,
+                    nn.BatchNorm1d(self.l_dim[i + 1]),
                     nn.ReLU(True),
                     nn.Linear(self.l_dim[-2], self.l_dim[-1], bias=False),
                 ]

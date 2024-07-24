@@ -132,36 +132,24 @@ class AliseMM(TemplateModule, LightningModule):
             self.projector_emb = IdentityProj()
         else:
             self.projector_emb = projector
-        print(self.projector_emb)
         self.save_hyperparameters()
 
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         h = batch.sits2a.h
         w = batch.sits2a.w
-        check_for_nans(batch.sits1a.sits)
-        check_for_nans(batch.sits1b.sits)
-        check_for_nans(batch.sits2a.sits)
-        check_for_nans(batch.sits2b.sits)
         s1 = merge2views(batch.sits1a, batch.sits1b)
         s2 = merge2views(batch.sits2a, batch.sits2b)
-        check_for_nans(s1.sits)
-        check_for_nans(s2.sits)
-        print(s1.sits)
         out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
         out_s2 = self.encodeur_s2.forward_keep_input_dim(s2)
         # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
         mask_tp_s1 = repeat(~s1.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)
-        check_for_nans(out_s2.repr)
-        check_for_nans(out_s1.repr)
         aligned_repr: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
             padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
             padd_s2=rearrange(mask_tp_s2, "b t h w -> (b h w) t "),
         )
-        check_for_nans(aligned_repr.s1)
-        check_for_nans(aligned_repr.s2)
         query_s2a = repeat(
             self.query_builder(self.q_decod_s2, batch.sits2a.input_doy),
             "b t c -> b t c h w",
@@ -244,7 +232,6 @@ class AliseMM(TemplateModule, LightningModule):
             torch.cat([embedding_s2, embedding_s1], dim=0),
             "view bhw t c -> (view bhw) t c",
         )
-        check_for_nans(embeddings)
         embeddings = self.projector_emb(embeddings)
         embeddings = rearrange(
             embeddings, "(view bhw) t c -> view bhw t c", view=4
@@ -361,10 +348,6 @@ class AliseMM(TemplateModule, LightningModule):
         )
 
     def training_step(self, batch: BatchMMSits, batch_idx: int):
-        check_for_nans(batch.sits2a.sits)
-        check_for_nans(batch.sits2b.sits)
-        check_for_nans(batch.sits1a.sits)
-        check_for_nans(batch.sits1b.sits)
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:
             return None
@@ -380,15 +363,9 @@ class AliseMM(TemplateModule, LightningModule):
         return out_shared_step.loss.compute()
 
     def validation_step(self, batch: BatchMMSits, batch_idx: int):
-        check_for_nans(batch.sits2a.sits)
-        check_for_nans(batch.sits2b.sits)
-        check_for_nans(batch.sits1a.sits)
-        check_for_nans(batch.sits1b.sits)
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:
-
             return None
-
         self.log_dict(
             out_shared_step.loss.to_dict(suffix="val"),
             on_epoch=True,
@@ -535,13 +512,8 @@ class AliseMM(TemplateModule, LightningModule):
         ), DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
 
     def invariance_loss(self, embeddings: LatRepr):
-        check_for_nans(embeddings.s1a)
-        check_for_nans(embeddings.s2a)
-        print(self.inv_loss)
         creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
         crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
-        print(f"view a {creca} {crecb}")
-        
         return 1 / 2 * (crecb + creca)
 
     def load_weights(self, path_ckpt, strict=True):
@@ -559,7 +531,3 @@ def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
         pl_module = pl_module.load_from_checkpoint(path_ckpt)
 
     return pl_module
-
-def check_for_nans(tensor):
-    if torch.isnan(tensor).any() or torch.isinf(tensor).any():
-        raise ValueError("NaNs or Infs detected in data")
