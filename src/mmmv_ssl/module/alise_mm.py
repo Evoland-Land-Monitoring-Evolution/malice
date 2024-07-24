@@ -6,13 +6,13 @@ import torch.nn as nn
 from einops import rearrange, repeat
 from hydra.utils import instantiate
 from lightning import LightningModule
-from mt_ssl.model.ubarn_repr_encoder import UBarnReprEncoder
 from mt_ssl.module.loss import create_mask_loss
 from mt_ssl.module.template import TemplateModule
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
 
 from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels, merge2views
+from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
@@ -36,8 +36,8 @@ my_logger = logging.getLogger(__name__)
 class AliseMM(TemplateModule, LightningModule):
     def __init__(
         self,
-        encodeur_s1: UBarnReprEncoder | DictConfig,
-        encodeur_s2: UBarnReprEncoder | DictConfig,
+        encodeur_s1: CleanUBarnReprEncoder | DictConfig,
+        encodeur_s2: CleanUBarnReprEncoder | DictConfig,
         common_temp_proj: nn.Module,
         decodeur: DictConfig | MetaDecoder,
         train_config,
@@ -71,7 +71,7 @@ class AliseMM(TemplateModule, LightningModule):
         self.common_temp_proj = common_temp_proj
         if isinstance(encodeur_s1, DictConfig):
             print("load here")
-            self.encodeur_s1: UBarnReprEncoder = instantiate(
+            self.encodeur_s1: CleanUBarnReprEncoder = instantiate(
                 encodeur_s1,
                 d_model=d_repr,
                 input_channels=input_channels.s1_channels,
@@ -79,10 +79,10 @@ class AliseMM(TemplateModule, LightningModule):
             )
         else:
             self.encodeur_s1 = encodeur_s1
-        if isinstance(encodeur_s2, UBarnReprEncoder):
+        if isinstance(encodeur_s2, CleanUBarnReprEncoder):
             self.encodeur_s2 = encodeur_s2
         else:
-            self.encodeur_s2: UBarnReprEncoder = instantiate(
+            self.encodeur_s2: CleanUBarnReprEncoder = instantiate(
                 encodeur_s2,
                 d_model=d_repr,
                 input_channels=input_channels.s2_channels,

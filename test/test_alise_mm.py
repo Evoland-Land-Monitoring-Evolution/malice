@@ -7,6 +7,8 @@ from mt_ssl.utils.open import open_yaml
 from omegaconf import DictConfig
 
 from mmmv_ssl.data.dataclass import BatchMMSits, BatchOneMod, MMChannels
+from mmmv_ssl.model.clean_ubarn import CleanUBarn
+from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.temp_proj import TemporalProjector
@@ -102,14 +104,18 @@ def test_forward_with_deep_decoder():
     nh_decod = 4
     query_s1s2 = 32
     pe_c = 32
-    s1_ub = UBarn(
+    s1_ub = CleanUBarn(
         ne_layers=1, d_model=d_repr, input_channels=3, use_transformer=True
     )
-    s2_ub = UBarn(
+    s2_ub = CleanUBarn(
         ne_layers=1, d_model=d_repr, input_channels=10, use_transformer=True
     )
-    s1_sste = UBarnReprEncoder(ubarn=s1_ub, d_model=d_repr, input_channels=3)
-    s2_sste = UBarnReprEncoder(ubarn=s2_ub, d_model=d_repr, input_channels=10)
+    s1_sste = CleanUBarnReprEncoder(
+        ubarn=s1_ub, d_model=d_repr, input_channels=3
+    )
+    s2_sste = CleanUBarnReprEncoder(
+        ubarn=s2_ub, d_model=d_repr, input_channels=10
+    )
     common_temp_proj = TemporalProjector(
         num_heads=nh, input_channels=d_repr, n_q=10
     )
@@ -154,7 +160,7 @@ def test_forward_with_deep_decoder():
 def test_instantiate():
     nq = 10
     d_repr = 4
-    module_config = DictConfig(open_yaml("../config/model/alise_mm.yaml"))
+    module_config = DictConfig(open_yaml("../config/module/alise_mm.yaml"))
     train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
     mm_channels = MMChannels(s1_channels=3, s2_channels=10)
     module = instantiate(
@@ -220,6 +226,26 @@ def test_instantiate_deepdeocder_training_step():
     input_batch = generate_mm_input(1, 2, 2, 64, 64)
     out_module = module.shared_step(input_batch)
     print(out_module.loss.to_dict())
+
+
+def test_instantiate_deepdeocder_validation_step():
+    d_repr = 8
+    module_config = DictConfig(
+        open_yaml("../config/module/alise_mm_deepdecod.yaml")
+    )
+    train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
+    mm_channels = MMChannels(s1_channels=3, s2_channels=10)
+    module = instantiate(
+        module_config,
+        train_config=train_config,
+        _recursive_=False,
+        input_channels=mm_channels,
+        d_repr=d_repr,
+    )
+    input_batch = generate_mm_input(1, 2, 2, 64, 64)
+    out_module = module.validation_step(input_batch, 0)
+    print(out_module.loss.to_dict(suffix="val"))
+    # print(out_module.loss.to_dict())
 
 
 def test_instantiate_proj_training_step():
