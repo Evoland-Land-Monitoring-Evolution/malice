@@ -125,7 +125,11 @@ def instantiate_pretrained_module(
         _recursive_=False,
     )
     if myconfig.dwnd_params.load_model:
-        pretrain_module_ckpt_path = find_good_ckpt(
+        if myconfig.precise_ckpt_path is not None:
+            print(f"looking at {myconfig.precise_ckpt_path}")
+            pretrain_module_ckpt_path=Path(myconfig.dwnd_params.path_dir_model).joinpath(myconfig.dwnd_params.dir_training).joinpath(myconfig.precise_ckpt_path)
+        else:
+            pretrain_module_ckpt_path = find_good_ckpt(
             myconfig.dwnd_params.path_dir_model,
             myconfig.dwnd_params.dir_training,
             metric_name=myconfig.dwnd_params.ckpt_type,
