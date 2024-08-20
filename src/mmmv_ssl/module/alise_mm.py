@@ -140,16 +140,23 @@ class AliseMM(TemplateModule, LightningModule):
         s1 = merge2views(batch.sits1a, batch.sits1b)
         s2 = merge2views(batch.sits2a, batch.sits2b)
         out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
+        check_for_nans(out_s1.repr)
+
         out_s2 = self.encodeur_s2.forward_keep_input_dim(s2)
+        check_for_nans(out_s2.repr)
         # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
         mask_tp_s1 = repeat(~s1.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)
+        my_logger.debug(f"s1 repr {out_s1.repr.shape}")
+        my_logger.debug(f"s2 repr {out_s2.repr.shape}")
         aligned_repr: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
-            padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
+            padd_s1=None,
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
-            padd_s2=rearrange(mask_tp_s2, "b t h w -> (b h w) t "),
+            padd_s2=None
         )
+        #padd_s2=rearrange(mask_tp_s2, "b t h w -> (b h w) t "),
+        #padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
         query_s2a = repeat(
             self.query_builder(self.q_decod_s2, batch.sits2a.input_doy),
             "b t c -> b t c h w",
@@ -364,14 +371,14 @@ class AliseMM(TemplateModule, LightningModule):
 
     def validation_step(self, batch: BatchMMSits, batch_idx: int):
         out_shared_step = self.shared_step(batch)
-        if out_shared_step.loss is None:
-            return None
+
         self.log_dict(
             out_shared_step.loss.to_dict(suffix="val"),
             on_epoch=True,
             on_step=True,
             batch_size=self.bs,
             prog_bar=True,
+            sync_dist=False
         )
         return out_shared_step
 
@@ -531,3 +538,11 @@ def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
         pl_module = pl_module.load_from_checkpoint(path_ckpt)
 
     return pl_module
+
+
+
+
+def check_for_nans(tensor):
+    if torch.isnan(tensor).any() or torch.isinf(tensor).any():
+
+        raise ValueError("NaNs or Infs detected in data")

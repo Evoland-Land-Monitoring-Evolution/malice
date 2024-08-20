@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-
+import logging
 import torch
 import torch.nn.functional as F
 from openeo_mmdc.dataset.padding import apply_padding
 from torch import Tensor
-
+my_logger=logging.getLogger(__name__)
 
 @dataclass
 class SITSOneMod:
@@ -17,8 +17,10 @@ class SITSOneMod:
     def apply_padding(self, max_len: int, allow_padd=True):
         # sits = rearrange(self.sits, "t c h w -> t c h w")
         t = self.sits.shape[0]
+
         sits, doy, padd_index = apply_padding(allow_padd, max_len, t,
                                               self.sits, self.input_doy)
+        my_logger.debug(f"t = {t} paddinx {padd_index}")
         padd_doy = (0, max_len - t)
         if self.true_doy is not None:
             true_doy = F.pad(self.true_doy, padd_doy)

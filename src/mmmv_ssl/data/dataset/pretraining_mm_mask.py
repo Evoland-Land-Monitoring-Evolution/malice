@@ -1,13 +1,13 @@
 from dataclasses import dataclass
 from typing import Any, Literal
-
+import logging 
 import torch
 from einops import rearrange, repeat
 from mt_ssl.data.dataset.unlabeled_dataset import UnlabeledDataset
 from openeo_mmdc.dataset.dataclass import ItemTensorMMDC
 
 from mmmv_ssl.data.dataclass import MMSITS, SITSOneMod
-
+my_logger=logging.getLogger(__name__)
 
 @dataclass
 class ConfigPretrainingMMYearDataset:
@@ -72,9 +72,15 @@ def split_one_mod(one_mode: SITSOneMod,
     """
     T = one_mode.sits.shape[0]
     idx = torch.randperm(T)  # idx all elements
-    split_idx = int(T // 2)
-    idx_v1, _ = torch.sort(idx[:split_idx])
-    idx_v2, _ = torch.sort(idx[split_idx:])
+
+    if T==1:
+        idx_v1=[0]
+        idx_v2=[0]
+    else:
+        split_idx = int(T // 2)
+        idx_v1, _ = torch.sort(idx[:split_idx])
+        idx_v2, _ = torch.sort(idx[split_idx:])
+    my_logger.debug(f"T {T} split_idx {split_idx}")
     one_mod_v1 = SITSOneMod(
         sits=one_mode.sits[idx_v1, ...],
         mask=one_mode.mask[idx_v1, ...],

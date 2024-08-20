@@ -54,12 +54,11 @@ def main(myconfig: DictConfig):
         config_path = find_file(
             myconfig.checkpoint_dir, myconfig.checkpoint_tr
         )
-        ckpt_path=Path(myconfig.checkpoint_dir).joinpath(myconfig.checkpoint_tr).joinpath(myconfig.precise_ckpt_path)
-        # ckpt_path = find_good_ckpt(
-        #     myconfig.checkpoint_dir,
-        #     myconfig.checkpoint_tr,
-        #     myconfig.metrics_pretrained,
-        # )
+
+        ckpt_path = find_good_ckpt(
+             myconfig.checkpoint_dir,
+             myconfig.checkpoint_tr,
+             myconfig.metrics_pretrained)
         myconfig = DictConfig(open_yaml(config_path))
         print(f"We are loading {ckpt_path}")
     else:
@@ -88,7 +87,9 @@ def main(myconfig: DictConfig):
             compiled_pl_module, datamodule=datamodule, ckpt_path=ckpt_path
         )
     else:
+
         my_trainer.fit(pl_module, datamodule=datamodule, ckpt_path=ckpt_path)
+    datamodule.setup("test")
     my_trainer.test(pl_module)
 if __name__ == "__main__":
     torch.backends.cuda.enable_mem_efficient_sdp(False)

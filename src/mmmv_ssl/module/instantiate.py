@@ -2,6 +2,7 @@ import logging
 
 import torch
 from hydra.utils import instantiate
+from pathlib import Path
 from mt_ssl.data.datamodule.pastis_datamodule import PASTISDataModule
 from mt_ssl.module.template_ft_module import FTParams
 from mt_ssl.utils.open import find_file, find_good_ckpt, open_yaml

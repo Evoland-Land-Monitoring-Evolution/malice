@@ -108,11 +108,15 @@ class CleanUBarn(nn.Module):
             )
             padd_index = rearrange(padd_index, " b t h w -> (b h w ) t")
             x = rearrange(x, "b t c h w -> (b h w ) t c")
+            my_logger.debug(f"before transformer {x.shape}")
             x = self.temporal_encoder(
                 x,
                 src_key_padding_mask=padd_index,
             )
+            my_logger.debug(f"padd_index {padd_index[0,:]}")
+            my_logger.debug(f"output ubarn clean {x.shape}")
             x = rearrange(x, "(b h w ) t c -> b t c h w ", b=b, h=h, w=w)
+            my_logger.debug(f"output ubarn clean {x.shape}")
             return BOutputUBarn(x)
 
         return BOutputUBarn(x, None)
