@@ -6,7 +6,7 @@ datamodule:
   batch_size: 1
   crop_size: 64
   s2_band: null
-  path_dir_csv: /home/ad/dumeuri/DeepChange/MMDC_OE/PT_FORMAT_MM3
+  path_dir_csv: /lustre/fswork/projects/rech/wfi/ubc65oh/dataset/MMDC_OE/PT_FORMAT_MM3
   modalities: [s2]
   prefetch_factor: 2
   scale_doy: null

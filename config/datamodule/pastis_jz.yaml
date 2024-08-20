@@ -2,7 +2,7 @@ datamodule:
     _target_: mt_ssl.data.datamodule.pastis_datamodule.PASTISDataModule
     crop_size: 64
     s2_band: null
-    path_dir_csv: /gpfswork/rech/wfi/ubc65oh/dataset/MMDC_OE
+    path_dir_csv: /lustre/fswork/projects/rech/wfi/ubc65oh/dataset/MMDC_OE
     max_len: 61
-    data_dir: /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+    data_dir: /lustre/fswork/projects/rech/wfi/ubc65oh/dataset/PASTIS
     num_workers: 4

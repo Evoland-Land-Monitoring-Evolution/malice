@@ -19,7 +19,7 @@ path_export_dir: /home/ad/dumeuri/trainings/pastis_classif
 checkpoint_dir: null
 checkpoint_tr: null
 precise_ckpt_path: null
-metrics_pretrained: last
+metrics_pretrained: total_loss
 fully_supervised: false
 seed: 0
 compile: false

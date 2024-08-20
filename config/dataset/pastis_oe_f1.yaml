@@ -1,6 +1,6 @@
 train:
   _target_: mt_ssl.data.dataset.pastis_oe.PASTIS_Dataset_OE
-  dataset_path:  /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+  dataset_path: /lustre/fswork/projects/rech/wfi/ubc65oh/dataset/PASTIS
   norm: false
   crop_size: 64
   crop_type: Random
@@ -9,7 +9,7 @@ train:
   extract_true_doy: true
 val:
   _target_: mt_ssl.data.dataset.pastis_oe.PASTIS_Dataset_OE
-  dataset_path: /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+  dataset_path: /lustre/fswork/projects/rech/wfi/ubc65oh/dataset/PASTIS
   norm: false
   crop_size: 64
   crop_type: Center
@@ -18,7 +18,7 @@ val:
   extract_true_doy: true
 test:
   _target_: mt_ssl.data.dataset.pastis_oe.PASTIS_Dataset_OE
-  dataset_path: /gpfswork/rech/wfi/ubc65oh/dataset/PASTIS
+  dataset_path: /lustre/fswork/projects/rech/wfi/ubc65oh/dataset/PASTIS
   norm: false
   crop_size: 64
   crop_type: Center
