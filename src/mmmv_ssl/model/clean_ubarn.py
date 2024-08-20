@@ -8,12 +8,158 @@ from mt_ssl.constant.dataset import ENCODE_PERMUTATED
 from mt_ssl.data.bert_batch import InputBERTBatch
 from mt_ssl.data.mask import permutate_flagged_patches
 from mt_ssl.data.mt_batch import BInput5d, BOutputUBarn
+from mt_ssl.model.attention import MultiHeadAttention
+from mt_ssl.model.convolutionalblock import ConvBlock
 from mt_ssl.model.encoding import InputEncoding, LearnedPE
+from mt_ssl.model.norm import AdaptedLayerNorm
 from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
 
 my_logger = logging.getLogger(__name__)
+
+
+class EncoderTransformerLayer2(nn.Module):
+    """Transformer encoder layer"""
+
+    def __init__(
+        self,
+        d_model: int,
+        d_in: int,
+        nhead: int = 1,
+        norm_first: bool = False,
+        block_name: Literal["se", "basicconv", "pff", "last", "cnn11"] = "se",
+        dropout=0.1,
+        attn_dropout: float = 0,
+    ):
+        super().__init__()
+
+        self.attn = MultiHeadAttention(
+            embed_dim=d_model, num_heads=nhead, dropout=attn_dropout
+        )
+        self.conv_block = ConvBlock(
+            inplanes=d_model,
+            planes=d_in,
+            block_name=block_name,
+            dropout=dropout,
+        )
+        self.norm = AdaptedLayerNorm(d_model, change_shape=True)
+        self.norm2 = AdaptedLayerNorm(d_model, change_shape=True)
+        self.norm_first = norm_first
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        input,
+        src_mask=None,
+        key_padding_mask=None,
+        is_causal=False,
+        src_key_padding_mask=None,
+    ):
+        """
+
+        Args:
+            input ():
+            src_mask ():
+            key_padding_mask (): True indicates which elements within ``key``
+            to ignore for the purpose of attention
+
+        Returns:
+
+        """
+
+        b, n, c, h, w = input.shape
+        # input is (b,n,c,h,w)
+
+        if self.norm_first:
+            x = input
+            output, enc_slf_attn = self._sa_block(
+                self.norm(input),
+                mask=src_mask,
+                key_padding_mask=key_padding_mask,
+            )
+            x = x + output
+            x = x + self._conv_block(self.norm2(x))
+        else:
+            x = input
+            output, enc_slf_attn = self._sa_block(
+                self.norm(input),
+                mask=src_mask,
+                key_padding_mask=key_padding_mask,
+            )
+            x = self.norm(x + output)
+            x = self.norm2(x + self._conv_block(x))
+
+        return x, enc_slf_attn
+
+    def _sa_block(self, x, mask, key_padding_mask):
+        x, p_attn = self.attn(
+            x, x, x, mask=mask, key_padding_mask=key_padding_mask
+        )
+        return self.dropout(x), p_attn
+
+    def _conv_block(self, x):
+        return self.conv_block(x)
+
+
+class Encoder2(nn.Module):
+    """Inspired from https://github.com/jadore801120/attention-is-all-you-need-pytorch/blob
+    /132907dd272e2cc92e3c10e6c4e783a87ff8893d/transformer/Models.py#L48"""
+
+    def __init__(
+        self,
+        n_layers: int,
+        d_model: int,
+        d_in: int,
+        dropout=0.1,
+        block_name: Literal["se", "pff", "basicconv"] = "se",
+        norm_first: bool = False,
+        nhead: int = 1,
+        attn_dropout: float = 0.1,
+    ):
+        super().__init__()
+        self.nhead = nhead
+        self.layer_stack = nn.ModuleList(
+            [
+                EncoderTransformerLayer2(
+                    d_model=d_model,
+                    d_in=d_in,
+                    nhead=nhead,
+                    norm_first=norm_first,
+                    block_name=block_name,
+                    dropout=dropout,
+                    attn_dropout=attn_dropout,
+                )
+                for _ in range(n_layers)
+            ]
+        )
+        self.dropout = nn.Dropout(p=dropout)
+        self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
+
+    def forward(
+        self,
+        input: torch.Tensor,
+        return_attns: bool = False,
+        src_key_padding_mask: None | torch.Tensor = None,
+        src_mask: None | torch.Tensor = None,
+    ) -> tuple[torch.Tensor, list[torch.Tensor] | None]:
+        my_logger.debug(f"input enc   {input.shape}")
+        enc_slf_attn_list = []
+        # enc_output = input
+        enc_output = self.dropout(input)
+        # some values are not there (b,n enc_output=self.layer_norm(ind_modelput) #not sure layer norm is adapted to our
+        # issue ...
+        for i, enc_layer in enumerate(self.layer_stack):
+            enc_output, enc_slf_attn = enc_layer(
+                enc_output,
+                key_padding_mask=src_key_padding_mask,
+                src_mask=src_mask,
+            )
+            enc_slf_attn_list += [enc_slf_attn] if return_attns else []
+        # if return_attns:
+        #     return enc_output, enc_slf_attn_list
+
+        return enc_output
 
 
 class CleanUBarn(nn.Module):
@@ -33,6 +179,7 @@ class CleanUBarn(nn.Module):
         pe_cst: int = 10000,
         pe_module: nn.Module | None = None,
         use_transformer: bool = True,
+        use_pytorch_transformer=True,
         *args,
         **kwargs,
     ):
@@ -49,18 +196,30 @@ class CleanUBarn(nn.Module):
         self.encoding_config = encoding_config
         self.max_len_pe = max_len_pe
         self.pe_cst = pe_cst
-        encoder_layer = TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=d_hidden,
-            dropout=dropout,
-            norm_first=norm_first,
-            batch_first=True,
-        )
         if use_transformer:
-            self.temporal_encoder = TransformerEncoder(
-                encoder_layer=encoder_layer, num_layers=ne_layers
-            )
+            if use_pytorch_transformer:
+                encoder_layer = TransformerEncoderLayer(
+                    d_model=d_model,
+                    nhead=nhead,
+                    dim_feedforward=d_hidden,
+                    dropout=dropout,
+                    norm_first=norm_first,
+                    batch_first=True,
+                )
+                self.temporal_encoder = TransformerEncoder(
+                    encoder_layer=encoder_layer, num_layers=ne_layers
+                )
+            else:
+                self.temporal_encoder = Encoder2(
+                    n_layers=ne_layers,
+                    d_model=d_model,
+                    d_in=d_hidden,
+                    dropout=dropout,
+                    block_name=block_name,
+                    norm_first=norm_first,
+                    nhead=nhead,
+                    attn_dropout=attn_dropout,
+                )
         else:
             self.temporal_encoder = None
         print(f"PE module {pe_module} type {type(pe_module)}")
@@ -106,8 +265,14 @@ class CleanUBarn(nn.Module):
             padd_index = repeat(
                 batch_input.padd_index, "b t -> b t h w ", h=h, w=w
             )
-            padd_index = rearrange(padd_index, " b t h w -> (b h w ) t")
-            x = rearrange(x, "b t c h w -> (b h w ) t c")
+            if isinstance(self.temporal_encoder, TransformerEncoder):
+                padd_index = repeat(
+                    batch_input.padd_index, "b t -> b t h w ", h=h, w=w
+                )
+                padd_index = rearrange(padd_index, " b t h w -> (b h w ) t")
+                x = rearrange(x, "b t c h w -> (b h w ) t c")
+            else:
+                padd_index = batch_input.padd_index
             my_logger.debug(f"before transformer {x.shape}")
             x = self.temporal_encoder(
                 x,
@@ -115,7 +280,8 @@ class CleanUBarn(nn.Module):
             )
             my_logger.debug(f"padd_index {padd_index[0,:]}")
             my_logger.debug(f"output ubarn clean {x.shape}")
-            x = rearrange(x, "(b h w ) t c -> b t c h w ", b=b, h=h, w=w)
+            if isinstance(self.temporal_encoder, TransformerEncoder):
+                x = rearrange(x, "(b h w ) t c -> b t c h w ", b=b, h=h, w=w)
             my_logger.debug(f"output ubarn clean {x.shape}")
             return BOutputUBarn(x)
 

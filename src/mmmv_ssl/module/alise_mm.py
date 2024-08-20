@@ -149,14 +149,21 @@ class AliseMM(TemplateModule, LightningModule):
         mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         my_logger.debug(f"s1 repr {out_s1.repr.shape}")
         my_logger.debug(f"s2 repr {out_s2.repr.shape}")
+        if isinstance(
+            self.encodeur_s1.ubarn.temporal_encoder, nn.TransformerEncoderLayer
+        ):
+            padd_s1, padd_s2 = None, None
+        else:
+            padd_s2 = rearrange(mask_tp_s2, "b t h w -> (b h w) t ")
+            padd_s1 = rearrange(mask_tp_s1, "b t h w -> (b h w) t")
         aligned_repr: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
-            padd_s1=None,
+            padd_s1=padd_s1,
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
-            padd_s2=None
+            padd_s2=padd_s2,
         )
-        #padd_s2=rearrange(mask_tp_s2, "b t h w -> (b h w) t "),
-        #padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
+        # padd_s2=rearrange(mask_tp_s2, "b t h w -> (b h w) t "),
+        # padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
         query_s2a = repeat(
             self.query_builder(self.q_decod_s2, batch.sits2a.input_doy),
             "b t c -> b t c h w",
@@ -378,7 +385,7 @@ class AliseMM(TemplateModule, LightningModule):
             on_step=True,
             batch_size=self.bs,
             prog_bar=True,
-            sync_dist=False
+            sync_dist=False,
         )
         return out_shared_step
 
@@ -540,9 +547,6 @@ def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
     return pl_module
 
 
-
-
 def check_for_nans(tensor):
     if torch.isnan(tensor).any() or torch.isinf(tensor).any():
-
         raise ValueError("NaNs or Infs detected in data")
