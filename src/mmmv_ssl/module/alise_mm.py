@@ -407,11 +407,12 @@ class AliseMM(TemplateModule, LightningModule):
         valid_mask2b = create_mask_loss(
             batch.sits2b.padd_index, ~batch.sits2b.mask
         )  # in .mask True means pixel valid
+        b, t, c, h, w = batch.sits1a.sits.shape
         despeckle_s1a, margin = despeckle_batch(
             rearrange(batch.sits1a.sits, "b t c h w -> (b t ) c h w")
         )
         despeckle_s1a = rearrange(
-            despeckle_s1a, "(b t ) c h w -> b t c h w", b=self.bs
+            despeckle_s1a, "(b t ) c h w -> b t c h w", b=b
         )[
             ...,
             margin : batch.sits1a.h - margin,
@@ -421,7 +422,7 @@ class AliseMM(TemplateModule, LightningModule):
             rearrange(batch.sits1b.sits, "b t c h w -> (b t ) c h w")
         )
         despeckle_s1b = rearrange(
-            despeckle_s1b, "(b t ) c h w -> b t c h w", b=self.bs
+            despeckle_s1b, "(b t ) c h w -> b t c h w", b=b
         )[
             ...,
             margin : batch.sits1a.h - margin,
@@ -433,6 +434,11 @@ class AliseMM(TemplateModule, LightningModule):
                 margin : batch.sits1a.h - margin,
                 margin : batch.sits1a.w - margin,
             ]
+            # print(self.bs)
+            print(
+                f"speckle {despeckle_s1a.shape} valid"
+                f" {valid_mask1a.shape} margin {margin}"
+            )
             s1a_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(
                     torch.masked_select(
