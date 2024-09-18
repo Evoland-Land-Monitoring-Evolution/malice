@@ -434,7 +434,7 @@ class AliseMM(TemplateModule, LightningModule):
                 margin : batch.sits1a.h - margin,
                 margin : batch.sits1a.w - margin,
             ]
-            print(f"mask1a {valid_mask1a.shape} despcekle {despeckle_s1a.shape} margin {margin} bs{self.bs}")
+            # print(f"mask1a {valid_mask1a.shape} despcekle {despeckle_s1a.shape} margin {margin} bs{self.bs}")
 
             s1a_rec_loss = OneViewRecL(
                 monom_rec=self.rec_loss(

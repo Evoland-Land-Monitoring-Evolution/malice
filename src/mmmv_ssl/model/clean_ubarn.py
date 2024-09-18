@@ -259,12 +259,9 @@ class CleanUBarn(nn.Module):
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
             x = x + doy_encoding
-            print(batch_input.padd_index.shape)
-            print(x.shape)
+            # print(batch_input.padd_index.shape)
+            # print(x.shape)
             b, t, c, h, w = x.shape
-            padd_index = repeat(
-                batch_input.padd_index, "b t -> b t h w ", h=h, w=w
-            )
             if isinstance(self.temporal_encoder, TransformerEncoder):
                 padd_index = repeat(
                     batch_input.padd_index, "b t -> b t h w ", h=h, w=w
