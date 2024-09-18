@@ -90,7 +90,9 @@ def main(myconfig: DictConfig):
 
         my_trainer.fit(pl_module, datamodule=datamodule, ckpt_path=ckpt_path)
     datamodule.setup("test")
-    my_trainer.test(pl_module)
+    my_trainer.test(pl_module,datamodule)
+    test_metrics=pl_module.save_test_metrics
+    torch.save(test_metrics,"test_metrics.pt")
 if __name__ == "__main__":
     torch.backends.cuda.enable_mem_efficient_sdp(False)
     torch.backends.cuda.enable_flash_sdp(False)
