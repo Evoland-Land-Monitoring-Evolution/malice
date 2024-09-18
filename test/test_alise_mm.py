@@ -326,6 +326,7 @@ def test_instantiate_proj_training_step():
         open_yaml("../config/module/alise_mm_proj.yaml")
     )
     train_config = DictConfig(open_yaml("../config/train/pretrain_ssl.yaml"))
+    train_config.batch_size = 3
     mm_channels = MMChannels(s1_channels=3, s2_channels=10)
     module = instantiate(
         module_config,
@@ -334,7 +335,7 @@ def test_instantiate_proj_training_step():
         input_channels=mm_channels,
         d_repr=d_repr,
     )
-    input_batch = generate_mm_input(1, 4, 4, 64, 64)
+    input_batch = generate_mm_input(3, 4, 4, 48, 48)
     out_module = module.shared_step(input_batch)
 
     print(out_module.loss.to_dict())
