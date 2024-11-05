@@ -12,7 +12,6 @@ my_logger = logging.getLogger(__name__)
 
 
 class CrossAttn(nn.Module):
-
     def __init__(self, n_head, d_k, d_in):
         super().__init__()
         self.n_head = n_head
@@ -34,7 +33,8 @@ class CrossAttn(nn.Module):
         """
         d_k, n_head = self.d_k, self.n_head
         sz_b, seq_len, _ = v.size()
-        q = torch.stack([q for _ in range(sz_b)], dim=1)
+        # q = torch.stack([q for _ in range(sz_b)], dim=1)
+        q = repeat(q, "head nq c -> head b nq c", b=sz_b)
         my_logger.debug(f"query{q.shape}")
         q = rearrange(q, "head b nq c -> b head nq c")
         k = self.fc1_k(v).view(sz_b, seq_len, n_head, d_k)
@@ -42,10 +42,9 @@ class CrossAttn(nn.Module):
         k = rearrange(k, "b t head c -> b head t c")
         my_logger.debug(f"key {k.shape}")
         if pad_mask is not None:
-            pad_mask = repeat(pad_mask,
-                              "b t -> b nhead nq t",
-                              nhead=n_head,
-                              nq=q.shape[2])
+            pad_mask = repeat(
+                pad_mask, "b t -> b nhead nq t", nhead=n_head, nq=q.shape[2]
+            )
             my_logger.debug(f"Pad mask shape {pad_mask.shape}")
 
         v = torch.stack(v.split(v.shape[-1] // n_head, dim=-1))
@@ -55,24 +54,25 @@ class CrossAttn(nn.Module):
         my_logger.debug(f"key {k.shape}")
         # q=q.to(v)
         output = torch.nn.functional.scaled_dot_product_attention(
-            query=q, key=k, value=v, attn_mask=pad_mask)  # B,h,nq,d_in
+            query=q, key=k, value=v, attn_mask=pad_mask
+        )  # B,h,nq,d_in
         my_logger.debug(f"output {output.shape}")
         return rearrange(output, "b h nq c -> b nq (h c)")
 
 
 class TemporalProjector(nn.Module):
-
     def __init__(self, num_heads: int, input_channels: int, n_q: int):
         super().__init__()
-        self.Q = nn.Parameter(torch.zeros(
-            (num_heads, n_q, input_channels))).requires_grad_(True)
+        self.Q = nn.Parameter(
+            torch.zeros((num_heads, n_q, input_channels))
+        ).requires_grad_(True)
         nn.init.normal_(self.Q, mean=0, std=np.sqrt(2.0 / (input_channels)))
-        self.ca_s1 = CrossAttn(n_head=num_heads,
-                               d_k=input_channels,
-                               d_in=input_channels)
-        self.ca_s2 = CrossAttn(n_head=num_heads,
-                               d_k=input_channels,
-                               d_in=input_channels)
+        self.ca_s1 = CrossAttn(
+            n_head=num_heads, d_k=input_channels, d_in=input_channels
+        )
+        self.ca_s2 = CrossAttn(
+            n_head=num_heads, d_k=input_channels, d_in=input_channels
+        )
 
     def forward(
         self,

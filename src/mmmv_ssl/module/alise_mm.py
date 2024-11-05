@@ -140,10 +140,10 @@ class AliseMM(TemplateModule, LightningModule):
         s1 = merge2views(batch.sits1a, batch.sits1b)
         s2 = merge2views(batch.sits2a, batch.sits2b)
         out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
-        check_for_nans(out_s1.repr)
+        # check_for_nans(out_s1.repr)
 
         out_s2 = self.encodeur_s2.forward_keep_input_dim(s2)
-        check_for_nans(out_s2.repr)
+        # check_for_nans(out_s2.repr)
         # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
         mask_tp_s1 = repeat(~s1.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)

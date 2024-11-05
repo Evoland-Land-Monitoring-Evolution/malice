@@ -48,7 +48,7 @@ class MonoSITSEncoder(TemplateReprEncoder, ABC):
                 "B n c h w -> (B h w ) n c",
             ),
             q=self.query,
-            pad_mask=padd_mask,
+            pad_mask=~padd_mask,
         )
         my_logger.debug(f"repr shape{repr.shape}")
         return BOutputReprEnco(

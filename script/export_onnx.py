@@ -59,6 +59,7 @@ def main():
     repr_encoder: MonoSITSEncoder = build_encoder(
         pretrained_module=module, mod=MOD
     )
+    print(repr_encoder)
     repr_encoder.eval()
     alise_model = MaliceOnnx(repr_encoder)
     alise_model.eval()
