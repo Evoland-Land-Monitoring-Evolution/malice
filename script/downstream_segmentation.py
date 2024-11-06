@@ -64,6 +64,8 @@ def main(myconfig: DictConfig):
     else:
         my_logger.info("We ate not loading pretrained model")
         ckpt_path = None
+    # ckpt_path = "/work/scratch/data/kalinie/MMDC/results/malice/fine_tune/fine_tune2023-11-10_14-33-22/no_pretrain_modelFalse_load_model_True_freeze_True/val[4]/training_folds[1, 2, 3]all/requeue/fine_tune/2024-10-29_13-51-30/checkpoints/last.ckpt"
+
     if myconfig.fully_supervised:
         pl_module, datamodule = instantiate_fs_seg_module(
             myconfig, path_ckpt=None, load_ours=True

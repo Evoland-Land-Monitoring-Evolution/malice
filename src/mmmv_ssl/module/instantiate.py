@@ -100,10 +100,12 @@ def instantiate_pretrained_module(
     else:
         load_params = {}
 
-    pretrain_config_file_path = find_file(
-        myconfig.dwnd_params.path_dir_model,
-        myconfig.dwnd_params.dir_training,
-    )
+    # pretrain_config_file_path = find_file(
+    #     myconfig.dwnd_params.path_dir_model,
+    #     myconfig.dwnd_params.dir_training,
+    # )
+    pretrain_config_file_path = "/work/scratch/data/kalinie/results/alise_preentrained/ckpt_alise_mm/.hydra/config.yaml"
+    # pretrain_config_file_path = "/work/scratch/data/kalinie/results/alise_preentrained/ckpt_alise_mm/metric-epoch=136-val_total_loss=0.2422.ckpt"
     pretrain_module_config = DictConfig(open_yaml(pretrain_config_file_path))
     d_model = None
     my_logger.info(f"Found {pretrain_config_file_path}")
@@ -125,15 +127,17 @@ def instantiate_pretrained_module(
         _recursive_=False,
     )
     if myconfig.dwnd_params.load_model:
-        if myconfig.precise_ckpt_path is not None:
-            print(f"looking at {myconfig.precise_ckpt_path}")
-            pretrain_module_ckpt_path=Path(myconfig.dwnd_params.path_dir_model).joinpath(myconfig.dwnd_params.dir_training).joinpath(myconfig.precise_ckpt_path)
-        else:
-            pretrain_module_ckpt_path = find_good_ckpt(
-            myconfig.dwnd_params.path_dir_model,
-            myconfig.dwnd_params.dir_training,
-            metric_name=myconfig.dwnd_params.ckpt_type,
-        )
+        pretrain_module_ckpt_path = "/work/scratch/data/kalinie/results/alise_preentrained/ckpt_alise_mm/metric-epoch=136-val_total_loss=0.2422.ckpt"
+
+        # if myconfig.precise_ckpt_path is not None:
+        #     print(f"looking at {myconfig.precise_ckpt_path}")
+        #     pretrain_module_ckpt_path=Path(myconfig.dwnd_params.path_dir_model).joinpath(myconfig.dwnd_params.dir_training).joinpath(myconfig.precise_ckpt_path)
+        # else:
+        #     pretrain_module_ckpt_path = find_good_ckpt(
+        #     myconfig.dwnd_params.path_dir_model,
+        #     myconfig.dwnd_params.dir_training,
+        #     metric_name=myconfig.dwnd_params.ckpt_type,
+        # )
     else:
         my_logger.info("Model randomly intialized")
         pretrain_module_ckpt_path = None
@@ -164,5 +168,10 @@ def instantiate_pretrained_module(
             num_classes=datamodule.num_classes,
             _recursive_=False,
         )
+    #
+    # output_torch_file = "/work/scratch/data/kalinie/results/alise_preentrained/malice_s2.pth"
+    # pl_module.repr_encoder.eval()
+    # torch.save(pl_module.repr_encoder, output_torch_file)
+    # exit()
     del pretrained_pl_module
     return pl_module, datamodule

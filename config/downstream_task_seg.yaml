@@ -15,7 +15,7 @@ hydra:
     subdir: ${hydra.job.override_dirname}
   job:
     name: fine_tune
-path_export_dir: /home/ad/dumeuri/trainings/pastis_classif
+path_export_dir: /work/scratch/data/${oc.env:USER}/MMDC/results/malice
 checkpoint_dir: null
 checkpoint_tr: null
 precise_ckpt_path: null
@@ -25,3 +25,6 @@ seed: 0
 compile: false
 suffix: all
 verbose: 0
+
+name: fine_tune
+run_id: ${now:%Y-%m-%d}_${now:%H-%M-%S}
