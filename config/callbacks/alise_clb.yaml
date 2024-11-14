@@ -1,11 +1,11 @@
 checkpoint:
   _target_: lightning.pytorch.callbacks.ModelCheckpoint
-  monitor: val_total_loss
+  monitor: val/total_loss
   verbose: true
   save_top_k: 2
   save_last: true
   auto_insert_metric_name: true
-  filename: "metric-{epoch:02d}-{val_total_loss:.4f}"
+  filename: metric-{epoch:02d}-${val/total_loss}
 summary_callback:
   _target_: lightning.pytorch.callbacks.ModelSummary
   max_depth: 8
@@ -13,7 +13,7 @@ learningrate:
   _target_: lightning.pytorch.callbacks.LearningRateMonitor
 stopping:
   _target_: lightning.pytorch.callbacks.EarlyStopping
-  monitor: val_total_loss
+  monitor: val/total_loss
   mode: min
   patience: 20
 image1:

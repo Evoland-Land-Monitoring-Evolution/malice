@@ -40,16 +40,16 @@ learningrate:
 
 stopping:
   _target_: lightning.pytorch.callbacks.EarlyStopping
-  monitor: val_total_loss
+  monitor: val/total_loss
   mode: min
   patience: 20
 
 checkpoint:
   _target_: lightning.pytorch.callbacks.ModelCheckpoint
-  monitor: val_total_loss
+  monitor: val/total_loss
   verbose: true
   save_top_k: 2
   save_last: true
   dirpath: ${output_dir}/checkpoints/${name}/${run_id}
   auto_insert_metric_name: true
-  filename: "metric-{epoch:02d}-{val_total_loss:.4f}"
+  filename: metric-{epoch:02d}-{val/total_loss}

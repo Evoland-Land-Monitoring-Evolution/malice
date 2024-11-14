@@ -31,6 +31,7 @@ trainer:
   check_val_every_n_epoch: 1
   profiler: simple
   precision: 32
+  num_sanity_val_steps: 0
 
 batch_size: 1
 return_attns: true
