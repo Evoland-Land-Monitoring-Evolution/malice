@@ -14,4 +14,5 @@ checkpoint:
   save_top_k: 2
   save_last: true
   auto_insert_metric_name: true
+  dirpath: ${output_dir}/checkpoints/${name}/${run_id}
   filename: "metric-{epoch:02d}-{val_total_loss:.4f}"

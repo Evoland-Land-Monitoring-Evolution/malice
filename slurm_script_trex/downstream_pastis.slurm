@@ -1,8 +1,7 @@
 #!/bin/bash
-#SBATCH --job-name=pretrain_malice     # job's name
-# --output = name of the output file  --error= name of error file (%j = jobID )
-#SBATCH --output=pretrain_malice-%j.out
-#SBATCH --error=pretrain_malice-%j.err
+#SBATCH --job-name=pretrain_malice
+#SBATCH --output=outputfile-%j.out
+#SBATCH --error=errorfile-%j.err
 #SBATCH -N 1                        # number of nodes ( or --nodes=1)
 #SBATCH --ntasks-per-node=16                     # number of tasks ( or --tasks=16)
 #SBATCH --gres=gpu:1                # number of gpus
@@ -12,7 +11,8 @@
 #SBATCH --mem-per-cpu=7G         # memory per core 
 #SBATCH --account=cesbio       # MANDATORY : account (launch myaccounts to list your accounts) 
 # #SBATCH --export=none              #  to start the job with a clean environnement and source of ~/.bashrc
-#SBATCH --signal=SIGHUP@90 
+#SBATCH --signal=SIGHUP@90
+
 module purge
 module load conda
 conda activate alise
@@ -22,6 +22,6 @@ export CUDA_LAUNCH_BLOCKING=1
 
 export PYTHONWARNINGS="ignore"
 
-cd /home/ad/dumeuri/code/mmmv_sits_ssl/script                                                                                                                                                                                                           
+cd /work/scratch/data/kalinie/src/MMDC/mmmv_sits_ssl
                     
-python script/downstream_segmentation.py
+python script/downstream_segmentation.py  >> output_$SLURM_JOBID.log

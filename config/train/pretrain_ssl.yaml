@@ -1,5 +1,5 @@
 w_rec: 1
-w_inv: 1
+w_inv: 5
 w_crossrec: 0.5
 rec_loss:
   _target_: torch.nn.MSELoss

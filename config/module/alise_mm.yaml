@@ -62,4 +62,4 @@ pe_config:
     _target_: mmmv_ssl.model.encoding.PositionalEncoder
 d_repr: 64
 query_s1s2_d: 16
-pe_channels: 64
+pe_channels: 32

@@ -24,4 +24,4 @@ export PYTHONWARNINGS="ignore"
 
 cd /work/scratch/data/kalinie/src/MMDC/mmmv_sits_ssl
                     
-python pretrain.py --config-name=pretrain_proj.yaml callbacks=mae_clb seed=0 train.w_inv=1 dataset=mask_mm.yaml train.trainer.precision=32 module=alise_mm_proj hydra.job.name=mm_mae_sd_speckle_all_fix load_model=false module.projector.freeze=true train.w_crossrec=0.5 
+python script/pretrain.py --config-name=pretrain_proj.yaml callbacks=mae_clb seed=0 train.w_inv=5 dataset=mask_mm.yaml train.trainer.precision=32 module=alise_mm_proj hydra.job.name=mm_mae_sd_speckle_all_fix load_model=false module.projector.freeze=true  train.w_crossrec=0.5

@@ -30,7 +30,7 @@ def main(myconfig: DictConfig):
         instantiate(cb_conf) for _, cb_conf in myconfig.callbacks.items()
     ]
     logger = [
-        instantiate(logg_conf, save_dir=Path.cwd())
+        instantiate(logg_conf)
         for _, logg_conf in myconfig.logger.items()
     ]
     if myconfig.train.trainer.precision in (16, "16"):
@@ -56,16 +56,26 @@ def main(myconfig: DictConfig):
         plugins=plugins,
         _convert_="partial",
     )
-    if myconfig.load_model:  # To continue training
-        print("We are required to load a model ")
-        config_path = find_file(myconfig.path_dir_model, myconfig.dir_training)
-        ckpt_path = find_good_ckpt(myconfig.path_dir_model,
-                                   myconfig.dir_training, "last")
-        myconfig = DictConfig(open_yaml(config_path))
-        print(f"We are loading {ckpt_path}")
-        possible_load_weights = False
+    # if myconfig.load_model:  # To continue training
+    #     print("We are required to load a model ")
+    #     config_path = find_file(myconfig.path_dir_model, myconfig.dir_training)
+    #     ckpt_path = find_good_ckpt(myconfig.path_dir_model,
+    #                                myconfig.dir_training, "last")
+    #     myconfig = DictConfig(open_yaml(config_path))
+    #     print(f"We are loading {ckpt_path}")
+    #     possible_load_weights = False
+    # else:
+    #     ckpt_path = None
+
+
+    # Train the model
+    ckpt_path = myconfig.get("resume_from_checkpoint")
+    if ckpt_path is not None:
+        my_logger.info("Training from checkpoint %s", ckpt_path)
     else:
-        ckpt_path = None
+        my_logger.info("Training from scratch")
+
+
     datamodule: MMMaskDataModule = instantiate(
         myconfig.datamodule.datamodule,
         config_dataset=myconfig.dataset,

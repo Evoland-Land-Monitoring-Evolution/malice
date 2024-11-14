@@ -6,12 +6,13 @@ import torch.nn as nn
 from einops import rearrange, repeat
 from hydra.utils import instantiate
 from lightning import LightningModule
+from mt_ssl.data.mt_batch import BOutputReprEnco
 from mt_ssl.module.loss import create_mask_loss
 from mt_ssl.module.template import TemplateModule
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
 
-from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels, merge2views
+from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels, merge2views, BatchOneMod
 from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
 from mmmv_ssl.model.decodeur import MetaDecoder
@@ -33,21 +34,36 @@ from mmmv_ssl.utils.speckle_filter import despeckle_batch
 my_logger = logging.getLogger(__name__)
 
 
+def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
+    b, t, _, h, w = batch_sits.sits.shape
+    despeckle_s1, margin = despeckle_batch(
+        rearrange(batch_sits.sits, "b t c h w -> (b t ) c h w")
+    )
+    despeckle_s1 = rearrange(
+        despeckle_s1, "(b t ) c h w -> b t c h w", b=b
+    )[
+                   ...,
+                   margin: h - margin,
+                   margin: w - margin,
+                   ]
+    return despeckle_s1, margin
+
+
 class AliseMM(TemplateModule, LightningModule):
     def __init__(
-        self,
-        encodeur_s1: CleanUBarnReprEncoder | DictConfig,
-        encodeur_s2: CleanUBarnReprEncoder | DictConfig,
-        common_temp_proj: nn.Module,
-        decodeur: DictConfig | MetaDecoder,
-        train_config,
-        input_channels: MMChannels,
-        pe_config: DictConfig | PositionalEncoder,
-        stats: None | tuple[Stats, Stats] = None,
-        d_repr: int = 64,
-        query_s1s2_d: int = 64,
-        pe_channels: int = 64,
-        projector: DictConfig | ProjectorTemplate = None,
+            self,
+            encodeur_s1: CleanUBarnReprEncoder | DictConfig,
+            encodeur_s2: CleanUBarnReprEncoder | DictConfig,
+            common_temp_proj: nn.Module,
+            decodeur: DictConfig | MetaDecoder,
+            train_config,
+            input_channels: MMChannels,
+            pe_config: DictConfig | PositionalEncoder,
+            stats: None | tuple[Stats, Stats] = None,
+            d_repr: int = 64,
+            query_s1s2_d: int = 64,
+            pe_channels: int = 64,
+            projector: DictConfig | ProjectorTemplate = None,
     ):
         super().__init__(train_config)
 
@@ -102,8 +118,8 @@ class AliseMM(TemplateModule, LightningModule):
         )
         self.query_s1s2_d = query_s1s2_d
         assert (
-            query_s1s2_d + pe_channels
-        ) % self.meta_decodeur.num_heads == 0, (
+                       query_s1s2_d + pe_channels
+               ) % self.meta_decodeur.num_heads == 0, (
             f"decoder query shape : {query_s1s2_d + pe_channels} decodeur"
             f" heads {self.meta_decodeur.num_heads}"
         )
@@ -134,107 +150,30 @@ class AliseMM(TemplateModule, LightningModule):
             self.projector_emb = projector
         self.save_hyperparameters()
 
-    def forward(self, batch: BatchMMSits) -> OutMMAliseF:
-        h = batch.sits2a.h
-        w = batch.sits2a.w
-        s1 = merge2views(batch.sits1a, batch.sits1b)
-        s2 = merge2views(batch.sits2a, batch.sits2b)
-        out_s1 = self.encodeur_s1.forward_keep_input_dim(s1)
-        # check_for_nans(out_s1.repr)
-
-        out_s2 = self.encodeur_s2.forward_keep_input_dim(s2)
-        # check_for_nans(out_s2.repr)
-        # mm_out=torch.cat([out_s1.repr,out_s2.repr],dim=2)
-        mask_tp_s1 = repeat(~s1.padd_index.bool(), "b t -> b t h w", h=h, w=w)
-        mask_tp_s2 = repeat(~s2.padd_index.bool(), "b t -> b t h w", h=h, w=w)
-        my_logger.debug(f"s1 repr {out_s1.repr.shape}")
-        my_logger.debug(f"s2 repr {out_s2.repr.shape}")
-        if isinstance(
-            self.encodeur_s1.ubarn.temporal_encoder, nn.TransformerEncoderLayer
-        ):
-            padd_s1, padd_s2 = None, None
+    def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
+        """Get two view of one satellite and encode them with encoder"""
+        if "1" in sat:
+            view1, view2 = batch.sits1a, batch.sits1b
         else:
-            padd_s2 = rearrange(mask_tp_s2, "b t h w -> (b h w) t ")
-            padd_s1 = rearrange(mask_tp_s1, "b t h w -> (b h w) t")
-        aligned_repr: OutTempProjForward = self.common_temp_proj(
-            sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
-            padd_s1=padd_s1,
-            sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
-            padd_s2=padd_s2,
-        )
-        # padd_s2=rearrange(mask_tp_s2, "b t h w -> (b h w) t "),
-        # padd_s1=rearrange(mask_tp_s1, "b t h w -> (b h w) t"),
-        query_s2a = repeat(
-            self.query_builder(self.q_decod_s2, batch.sits2a.input_doy),
-            "b t c -> b t c h w",
-            h=batch.sits2a.h,
-            w=batch.sits2a.w,
-        )  # used to decode s2a dates from s1a or from s2b
-        query_s2b = repeat(
-            self.query_builder(self.q_decod_s2, batch.sits2b.input_doy),
-            "b t c -> b t c h w",
-            h=batch.sits2a.h,
-            w=batch.sits2a.w,
-        )  # used to decode s2b dates from s1b or from s2a
-        my_logger.debug(f"query decodeur s2 {query_s2b.shape}")
-        query_s1a = repeat(
-            self.query_builder(self.q_decod_s1, batch.sits1a.input_doy),
-            "b t c -> b t c h w",
-            h=batch.sits1a.h,
-            w=batch.sits1a.w,
-        )  # used to decode s1a dates from s2a and s1b embeddings
-        query_s1b = repeat(
-            self.query_builder(self.q_decod_s1, batch.sits1b.input_doy),
-            "b t c -> b t c h w",
-            h=batch.sits1b.h,
-            w=batch.sits1b.w,
-        )  # used to decode s1b dates from s2b and s1a embeddings
+            view1, view2 = batch.sits2a, batch.sits2b
+        h = view1.h
+        w = view1.w
+        merged_views = merge2views(view1, view2)
 
-        mm_queries = torch.cat(
-            [
-                rearrange(
-                    query_s2b,
-                    "b t (nh c) h w ->nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s1a,
-                    "b t (nh c )h w -> nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s2a,
-                    "b t (nh c) h w ->nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s1b,
-                    "b t (nh c )h w -> nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s1b,
-                    "b t (nh c )h w -> nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s2a,
-                    "b t (nh c) h w ->nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s1a,
-                    "b t (nh c )h w -> nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-                rearrange(
-                    query_s2b,
-                    "b t (nh c) h w ->nh (b h w) t c",
-                    nh=self.meta_decodeur.num_heads,
-                ),
-            ],
-            dim=1,
-        )
+        out = self.encodeur_s1.forward_keep_input_dim(merged_views) if "1" in sat \
+            else self.encodeur_s2.forward_keep_input_dim(merged_views)
+
+        mask_tp = repeat(~merged_views.padd_index.bool(), "b t -> b t h w", h=h, w=w)
+        my_logger.debug(f"{sat} repr {out.repr.shape}")
+        if isinstance(
+                self.encodeur_s1.ubarn.temporal_encoder, nn.TransformerEncoderLayer
+        ):
+            padd = None
+        else:
+            padd = rearrange(mask_tp, "b t h w -> (b h w) t ")
+        return out, padd
+
+    def compute_mm_embeddings(self, aligned_repr: OutTempProjForward, h: int, w: int):
         embedding_s1 = rearrange(
             aligned_repr.s1, "(view bhw) t c-> view bhw t c", view=2
         )
@@ -263,22 +202,31 @@ class AliseMM(TemplateModule, LightningModule):
             ],
             dim=0,
         )  # should be s2a,s2a,s2b,s2b,s1a,s1a,s1b,s1b
-        my_logger.debug(f"queries{mm_queries.shape}")
-        h, w = batch.sits2a.h, batch.sits2a.w
-        padd_mm = torch.cat(
-            [
-                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
-                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
-            ],
-            dim=0,
-        )  # 2(b h w) t
-        # print(f"padd mask {padd_mm.shape}")
+
+        rearrange_embeddings = lambda x: rearrange(
+            x, "(b h w) t c-> b t c h w", h=h, w=w
+        )
+
+        repr = LatRepr(*
+                       [rearrange_embeddings(emb) for emb in
+                        [
+                            embedding_s1[0, ...],
+                            embedding_s1[1, ...],
+                            embedding_s2[0, ...],
+                            embedding_s2[1, ...],
+                        ]
+                        ])
+        out_emb = LatRepr(
+            s2a=embeddings[0, ...],
+            s2b=embeddings[1, ...],
+            s1a=embeddings[2, ...],
+            s1b=embeddings[3, ...],
+        )
+
+        return repr, out_emb, mm_embedding
+
+    def decoder(self, batch, mm_embedding: torch.Tensor, padd_mm: torch.Tensor, mm_queries: torch.Tensor) -> Rec:
+        # Decoder!
         out = self.meta_decodeur.forward(
             mm_sits=mm_embedding, padd_mm=padd_mm, mm_queries=mm_queries
         )  # (2bhw) t d
@@ -303,20 +251,7 @@ class AliseMM(TemplateModule, LightningModule):
         )
         s1_rec = rearrange(s1_rec, "(mod b) t h w c -> mod b t c h w", mod=4)
         s2_rec = rearrange(s2_rec, "(mod b) t h w c -> mod b t c h w", mod=4)
-        repr = LatRepr(
-            s1a=rearrange(
-                embedding_s1[0, ...], "(b h w) t c-> b t c h w", h=h, w=w
-            ),
-            s1b=rearrange(
-                embedding_s1[1, ...], "(b h w) t c -> b t c h w", h=h, w=w
-            ),
-            s2a=rearrange(
-                embedding_s2[0, ...], "(b h w) t c -> b t c h w", h=h, w=w
-            ),
-            s2b=rearrange(
-                embedding_s2[1, ...], "(b h w) t c -> b t c h w", h=h, w=w
-            ),
-        )
+
         rec = Rec(
             s1a=RecWithOrigin(
                 same_mod=s1_rec[3, ...], other_mod=s1_rec[0, ...]
@@ -331,13 +266,59 @@ class AliseMM(TemplateModule, LightningModule):
                 same_mod=s2_rec[0, ...], other_mod=s2_rec[3, ...]
             ),
         )
-        out_emb = LatRepr(
-            s2a=embeddings[0, ...],
-            s2b=embeddings[1, ...],
-            s1a=embeddings[2, ...],
-            s1b=embeddings[3, ...],
+
+        return rec
+
+    def forward(self, batch: BatchMMSits) -> OutMMAliseF:
+        out_s1, padd_s1 = self.encode_views(batch, sat="s1")
+        out_s2, padd_s2 = self.encode_views(batch, sat="s2")
+
+        aligned_repr: OutTempProjForward = self.common_temp_proj(
+            sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
+            padd_s1=padd_s1,
+            sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
+            padd_s2=padd_s2,
         )
-        return OutMMAliseF(repr=repr, rec=rec, emb=out_emb)
+
+        query_s2a = self.compute_query(batch_sits=batch.sits2a, sat="s2")
+        query_s2b = self.compute_query(batch_sits=batch.sits2b, sat="s2")
+        query_s1a = self.compute_query(batch_sits=batch.sits1a, sat="s1")
+        query_s1b = self.compute_query(batch_sits=batch.sits1b, sat="s1")
+
+        my_logger.debug(f"query decodeur s2 {query_s2b.shape}")
+
+        mm_queries = torch.cat(
+            [
+                query_s2b, query_s1a, query_s2a, query_s1b,
+                query_s1b, query_s2a, query_s1a, query_s2b,
+            ],
+            dim=1,
+        )
+        my_logger.debug(f"queries{mm_queries.shape}")
+
+        repr, out_emb, mm_embedding = self.compute_mm_embeddings(aligned_repr, batch.sits1a.h, batch.sits1a.w)
+
+
+
+        h, w = batch.sits2a.h, batch.sits2a.w
+        padd_mm = torch.cat(
+            [
+                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits2a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits1a.padd_index, "b t -> (b h w) t ", h=h, w=w),
+                repeat(batch.sits2b.padd_index, "b t -> (b h w) t ", h=h, w=w),
+            ],
+            dim=0,
+        )  # 2(b h w) t
+        # print(f"padd mask {padd_mm.shape}")
+
+        reconstructions = self.decoder(batch, mm_embedding, padd_mm, mm_queries)
+
+        return OutMMAliseF(repr=repr, rec=reconstructions, emb=out_emb)
 
     def shared_step(self, batch: BatchMMSits) -> OutMMAliseSharedStep:
         out_model = self.forward(batch)
@@ -374,6 +355,14 @@ class AliseMM(TemplateModule, LightningModule):
             prog_bar=True,
         )
 
+        # self.log(
+        #     f"train/{self.losses_list[0]}",
+        #     out_shared_step.loss,
+        #     on_step=True,
+        #     on_epoch=True,
+        #     prog_bar=False,
+        # )
+
         return out_shared_step.loss.compute()
 
     def validation_step(self, batch: BatchMMSits, batch_idx: int):
@@ -390,136 +379,34 @@ class AliseMM(TemplateModule, LightningModule):
         return out_shared_step
 
     def compute_rec_loss(
-        self, batch: BatchMMSits, rec: Rec
+            self, batch: BatchMMSits, rec: Rec
     ) -> tuple[TotalRecLoss, DespeckleS1] | tuple[None, None]:
         assert isinstance(batch, BatchMMSits), f"batch is {batch}"
 
-        valid_mask1a = create_mask_loss(
-            batch.sits1a.padd_index, ~batch.sits1a.mask
-        )  # in .mask True means pixel valid
+        despeckle_s1a, margin = despeckle(batch.sits1a)
+        despeckle_s1b, _ = despeckle(batch.sits1b)
 
-        valid_mask1b = create_mask_loss(
-            batch.sits1b.padd_index, ~batch.sits1b.mask
-        )  # in .mask True means pixel valid
-        valid_mask2a = create_mask_loss(
-            batch.sits2a.padd_index, ~batch.sits2a.mask
-        )  # in .mask True means pixel valid
-        valid_mask2b = create_mask_loss(
-            batch.sits2b.padd_index, ~batch.sits2b.mask
-        )  # in .mask True means pixel valid
-        b, t, c, h, w = batch.sits1a.sits.shape
-        despeckle_s1a, margin = despeckle_batch(
-            rearrange(batch.sits1a.sits, "b t c h w -> (b t ) c h w")
-        )
-        despeckle_s1a = rearrange(
-            despeckle_s1a, "(b t ) c h w -> b t c h w", b=b
-        )[
-            ...,
-            margin : batch.sits1a.h - margin,
-            margin : batch.sits1a.w - margin,
-        ]
-        despeckle_s1b, _ = despeckle_batch(
-            rearrange(batch.sits1b.sits, "b t c h w -> (b t ) c h w")
-        )
-        despeckle_s1b = rearrange(
-            despeckle_s1b, "(b t ) c h w -> b t c h w", b=b
-        )[
-            ...,
-            margin : batch.sits1a.h - margin,
-            margin : batch.sits1a.w - margin,
-        ]
-        if torch.sum(valid_mask1a) != 0:
-            valid_mask1a = valid_mask1a[
-                ...,
-                margin : batch.sits1a.h - margin,
-                margin : batch.sits1a.w - margin,
-            ]
-            # print(f"mask1a {valid_mask1a.shape} despcekle {despeckle_s1a.shape} margin {margin} bs{self.bs}")
+        s1a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1a,
+                                                 sits=batch.sits1a,
+                                                 original_sits=despeckle_s1a,
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
+                                                 margin=margin)
 
-            s1a_rec_loss = OneViewRecL(
-                monom_rec=self.rec_loss(
-                    torch.masked_select(
-                        rec.s1a.same_mod[
-                            ...,
-                            margin : batch.sits1a.h - margin,
-                            margin : batch.sits1a.w - margin,
-                        ],
-                        valid_mask1a,
-                    ),
-                    torch.masked_select(despeckle_s1a, valid_mask1a),
-                ),
-                crossm_rec=self.rec_loss(
-                    torch.masked_select(
-                        rec.s1a.other_mod[
-                            ...,
-                            margin : batch.sits1a.h - margin,
-                            margin : batch.sits1a.w - margin,
-                        ],
-                        valid_mask1a,
-                    ),
-                    torch.masked_select(despeckle_s1a, valid_mask1a),
-                ),
-            )
-        else:
-            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
-        if torch.sum(valid_mask1b) != 0:
-            valid_mask1b = valid_mask1b[
-                ...,
-                margin : batch.sits1a.h - margin,
-                margin : batch.sits1a.w - margin,
-            ]
-            s1b_rec_loss = OneViewRecL(
-                monom_rec=self.rec_loss(
-                    torch.masked_select(
-                        rec.s1b.same_mod[
-                            ...,
-                            margin : batch.sits1b.h - margin,
-                            margin : batch.sits1b.w - margin,
-                        ],
-                        valid_mask1b,
-                    ),
-                    torch.masked_select(despeckle_s1b, valid_mask1b),
-                ),
-                crossm_rec=self.rec_loss(
-                    torch.masked_select(
-                        rec.s1b.other_mod[
-                            ...,
-                            margin : batch.sits1b.h - margin,
-                            margin : batch.sits1b.w - margin,
-                        ],
-                        valid_mask1b,
-                    ),
-                    torch.masked_select(despeckle_s1b, valid_mask1b),
-                ),
-            )
-        else:
-            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
-        if torch.sum(valid_mask2a) != 0:
-            s2a_rec_loss = OneViewRecL(
-                monom_rec=self.rec_loss(
-                    torch.masked_select(rec.s2a.same_mod, valid_mask2a),
-                    torch.masked_select(batch.sits2a.sits, valid_mask2a),
-                ),
-                crossm_rec=self.rec_loss(
-                    torch.masked_select(rec.s2a.other_mod, valid_mask2a),
-                    torch.masked_select(batch.sits2a.sits, valid_mask2a),
-                ),
-            )
-        else:
-            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
-        if torch.sum(valid_mask2b) != 0:
-            s2b_rec_loss = OneViewRecL(
-                monom_rec=self.rec_loss(
-                    torch.masked_select(rec.s2b.same_mod, valid_mask2b),
-                    torch.masked_select(batch.sits2b.sits, valid_mask2b),
-                ),
-                crossm_rec=self.rec_loss(
-                    torch.masked_select(rec.s2b.other_mod, valid_mask2b),
-                    torch.masked_select(batch.sits2b.sits, valid_mask2b),
-                ),
-            )
-        else:
-            return None, DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
+        s1b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1b,
+                                                 sits=batch.sits1b,
+                                                 original_sits=despeckle_s1b,
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
+                                                 margin=margin)
+
+        s2a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2a,
+                                                 sits=batch.sits2a,
+                                                 original_sits=batch.sits2a.sits,
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
+
+        s2b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2b,
+                                                 sits=batch.sits1b,
+                                                 original_sits=batch.sits2b.sits,
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
 
         return TotalRecLoss(
             s1_a=s1a_rec_loss,
@@ -541,6 +428,58 @@ class AliseMM(TemplateModule, LightningModule):
             map_params = {}
         ckpt = torch.load(path_ckpt, **map_params)
         self.load_state_dict(ckpt["state_dict"], strict=strict)
+
+    def compute_one_rec_loss(self, rec_sits: RecWithOrigin,
+                             sits: BatchOneMod,
+                             original_sits: torch.Tensor,
+                             return_desp: DespeckleS1 | None = None, margin: int = 0
+                             ) -> OneViewRecL | tuple[None, DespeckleS1]:
+        valid_mask = create_mask_loss(
+            sits.padd_index, ~sits.mask
+        )  # in .mask True means pixel valid
+        h, w = sits.h, sits.w
+        if torch.sum(valid_mask) != 0:
+            valid_mask = valid_mask[
+                         ...,
+                         margin: h - margin,
+                         margin: w - margin,
+                         ]
+            return OneViewRecL(
+                monom_rec=self.rec_loss(
+                    torch.masked_select(rec_sits.same_mod[
+                                        ...,
+                                        margin: h - margin,
+                                        margin: w - margin,
+                                        ],
+                                        valid_mask),
+                    torch.masked_select(original_sits, valid_mask),
+                ),
+                crossm_rec=self.rec_loss(
+                    torch.masked_select(rec_sits.other_mod[
+                                        ...,
+                                        margin: h - margin,
+                                        margin: w - margin,
+                                        ],
+                                        valid_mask),
+                    torch.masked_select(original_sits, valid_mask),
+                ),
+            )
+        else:
+            return None, return_desp
+
+    def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
+        """Compute query and reshape it"""
+        query = repeat(
+            self.query_builder(self.q_decod_s2 if sat == "s1" else self.q_decod_s1, batch_sits.input_doy),
+            "b t c -> b t c h w",
+            h=batch_sits.h,
+            w=batch_sits.w,
+        )
+        return rearrange(
+            query,
+            "b t (nh c )h w -> nh (b h w) t c",
+            nh=self.meta_decodeur.num_heads,
+        )
 
 
 def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
