@@ -31,14 +31,6 @@ from mmmv_ssl.module.loss import ReconstructionLoss, InvarianceLoss, GlobalLoss
 my_logger = logging.getLogger(__name__)
 
 
-def define_query_decoder(query):
-    q_decod = nn.Parameter(
-        torch.zeros(query)
-    ).requires_grad_(True)
-    nn.init.normal_(
-        q_decod, mean=0, std=np.sqrt(2.0 / (query))
-    )  # TODO check that
-    return q_decod
 
 
 class AliseMM(TemplateModule, LightningModule):
@@ -115,22 +107,9 @@ class AliseMM(TemplateModule, LightningModule):
             f"decoder query shape : {query_s1s2_d + pe_channels} decodeur"
             f" heads {self.meta_decodeur.num_heads}"
         )
-        # self.q_decod_s1 = self.define_query_decoder(query_s1s2_d)
-        # self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
-        self.q_decod_s1 = nn.Parameter(
-            torch.zeros(query_s1s2_d)
-        ).requires_grad_(True)
-        nn.init.normal_(
-            self.q_decod_s1, mean=0, std=np.sqrt(2.0 / (query_s1s2_d))
-        )  # TODO check that
-        self.q_decod_s2 = nn.Parameter(
-            torch.zeros(query_s1s2_d)
-        ).requires_grad_(
-            True
-        )  # self.meta_decodeur.num_heads,
-        nn.init.normal_(
-            self.q_decod_s2, mean=0, std=np.sqrt(2.0 / (query_s1s2_d))
-        )  # TODO check that
+        self.q_decod_s1 = self.define_query_decoder(query_s1s2_d)
+        self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
+
         self.inv_loss = InvarianceLoss(torch.nn.MSELoss())
         self.rec_loss = ReconstructionLoss(torch.nn.MSELoss())
         self.global_loss = GlobalLoss(train_config.w_inv, train_config.w_rec, train_config.w_crossrec)

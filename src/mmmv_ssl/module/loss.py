@@ -124,7 +124,8 @@ class ReconstructionLoss(nn.Module):
 class InvarianceLoss(nn.Module):
     def __init__(
             self,
-            inv_loss: nn.Module = nn.MSELoss()
+            inv_loss: nn.Module = nn.MSELoss(),
+            same_mod_loss: bool = False
     ):
         """
         Class for invariance loss (latent space loss).
@@ -132,6 +133,8 @@ class InvarianceLoss(nn.Module):
 
         super().__init__()
         self.inv_loss = inv_loss
+        self.same_mod_loss = same_mod_loss
+
 
     def compute_inv_loss(self, embeddings: LatRepr):
         """
@@ -141,7 +144,11 @@ class InvarianceLoss(nn.Module):
         """
         creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
         crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
-        return 1 / 2 * (crecb + creca)
+        if self.same_mod_loss:
+            crec1 = self.inv_loss(embeddings.s1a, embeddings.s1b)
+            crec2 = self.inv_loss(embeddings.s2a, embeddings.s2b)
+            return (crecb + creca + crec1 + crec2) / 4
+        return (crecb + creca) / 2
 
 
 class GlobalLoss(nn.Module):
@@ -160,6 +167,7 @@ class GlobalLoss(nn.Module):
         self.w_inv = w_inv
         self.w_cross_rec = w_cross_rec
 
+    @staticmethod
     def define_global_loss(self, tot_rec_loss, inv_loss):
         """
         Define global loss.
