@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -7,7 +8,6 @@ from einops import rearrange, repeat
 from hydra.utils import instantiate
 from lightning import LightningModule
 from mt_ssl.data.mt_batch import BOutputReprEnco
-from mt_ssl.module.loss import create_mask_loss
 from mt_ssl.module.template import TemplateModule
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
@@ -21,32 +21,24 @@ from mmmv_ssl.model.projector import IdentityProj, ProjectorTemplate
 from mmmv_ssl.model.query_utils import TempMetaQuery
 from mmmv_ssl.model.temp_proj import TemporalProjector
 from mmmv_ssl.module.dataclass import (
-    DespeckleS1,
     LatRepr,
     OutMMAliseF,
-    OutMMAliseSharedStep,
     Rec,
-    RecWithOrigin,
+    RecWithOrigin, OutMMAliseSharedStep,
 )
-from mmmv_ssl.module.loss import GlobalInvRecMMLoss, OneViewRecL, TotalRecLoss
-from mmmv_ssl.utils.speckle_filter import despeckle_batch
+from mmmv_ssl.module.loss import ReconstructionLoss, InvarianceLoss, GlobalLoss
 
 my_logger = logging.getLogger(__name__)
 
 
-def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
-    b, t, _, h, w = batch_sits.sits.shape
-    despeckle_s1, margin = despeckle_batch(
-        rearrange(batch_sits.sits, "b t c h w -> (b t ) c h w")
-    )
-    despeckle_s1 = rearrange(
-        despeckle_s1, "(b t ) c h w -> b t c h w", b=b
-    )[
-                   ...,
-                   margin: h - margin,
-                   margin: w - margin,
-                   ]
-    return despeckle_s1, margin
+def define_query_decoder(query):
+    q_decod = nn.Parameter(
+        torch.zeros(query)
+    ).requires_grad_(True)
+    nn.init.normal_(
+        q_decod, mean=0, std=np.sqrt(2.0 / (query))
+    )  # TODO check that
+    return q_decod
 
 
 class AliseMM(TemplateModule, LightningModule):
@@ -123,6 +115,8 @@ class AliseMM(TemplateModule, LightningModule):
             f"decoder query shape : {query_s1s2_d + pe_channels} decodeur"
             f" heads {self.meta_decodeur.num_heads}"
         )
+        # self.q_decod_s1 = self.define_query_decoder(query_s1s2_d)
+        # self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
         self.q_decod_s1 = nn.Parameter(
             torch.zeros(query_s1s2_d)
         ).requires_grad_(True)
@@ -137,11 +131,10 @@ class AliseMM(TemplateModule, LightningModule):
         nn.init.normal_(
             self.q_decod_s2, mean=0, std=np.sqrt(2.0 / (query_s1s2_d))
         )  # TODO check that
-        self.inv_loss = torch.nn.MSELoss()
-        self.rec_loss = torch.nn.MSELoss()
-        self.w_inv = train_config.w_inv
-        self.w_rec = train_config.w_rec
-        self.w_crossrec = train_config.w_crossrec
+        self.inv_loss = InvarianceLoss(torch.nn.MSELoss())
+        self.rec_loss = ReconstructionLoss(torch.nn.MSELoss())
+        self.global_loss = GlobalLoss(train_config.w_inv, train_config.w_rec, train_config.w_crossrec)
+
         if isinstance(projector, DictConfig):
             self.projector_emb = instantiate(projector, input_channels=d_repr)
         elif (projector is None) or (self.w_inv == 0):
@@ -323,21 +316,14 @@ class AliseMM(TemplateModule, LightningModule):
     def shared_step(self, batch: BatchMMSits) -> OutMMAliseSharedStep:
         out_model = self.forward(batch)
         assert isinstance(batch, BatchMMSits)
-        tot_rec_loss, despeckle_s1 = self.compute_rec_loss(
+        tot_rec_loss, despeckle_s1 = self.rec_loss.compute_rec_loss(
             batch=batch, rec=out_model.rec
         )
 
-        inv_loss = self.invariance_loss(out_model.emb)
-        if tot_rec_loss is None:
-            global_loss = None
-        else:
-            global_loss = GlobalInvRecMMLoss(
-                total_rec_loss=tot_rec_loss,
-                inv_loss=inv_loss,
-                w_rec=self.w_rec,
-                w_inv=self.w_inv,
-                w_crossrec=self.w_crossrec,
-            )
+        inv_loss = self.inv_loss.compute_inv_loss(out_model.emb)
+
+        global_loss = self.global_loss.define_global_loss(tot_rec_loss, inv_loss)
+
         return OutMMAliseSharedStep(
             loss=global_loss, out_forward=out_model, despeckle_s1=despeckle_s1
         )
@@ -347,78 +333,37 @@ class AliseMM(TemplateModule, LightningModule):
         if out_shared_step.loss is None:
             return None
 
-        self.log_dict(
-            out_shared_step.loss.to_dict(suffix="train"),
-            on_epoch=True,
-            on_step=True,
-            batch_size=self.bs,
-            prog_bar=True,
-        )
+        loss_dict = self.global_loss.all_losses_dict(out_shared_step.loss)
 
-        # self.log(
-        #     f"train/{self.losses_list[0]}",
-        #     out_shared_step.loss,
-        #     on_step=True,
-        #     on_epoch=True,
-        #     prog_bar=False,
-        # )
+        for loss_name, value in loss_dict.items():
+            if value is not None:
+                self.log(
+                    f"train/{loss_name}",
+                    value.item(),
+                    on_step=True,
+                    on_epoch=True,
+                    prog_bar=False,
+                    batch_size=self.bs
+                )
 
-        return out_shared_step.loss.compute()
+        return loss_dict["total_loss"]
 
     def validation_step(self, batch: BatchMMSits, batch_idx: int):
         out_shared_step = self.shared_step(batch)
 
-        self.log_dict(
-            out_shared_step.loss.to_dict(suffix="val"),
-            on_epoch=True,
-            on_step=True,
-            batch_size=self.bs,
-            prog_bar=True,
-            sync_dist=False,
-        )
+        loss_dict = self.global_loss.all_losses_dict(out_shared_step.loss)
+
+        for loss_name, value in loss_dict.items():
+            self.log(
+                f"val/{loss_name}",
+                value.item(),
+                on_step=False,
+                on_epoch=True,
+                prog_bar=False,
+                batch_size=self.bs
+            )
         return out_shared_step
 
-    def compute_rec_loss(
-            self, batch: BatchMMSits, rec: Rec
-    ) -> tuple[TotalRecLoss, DespeckleS1] | tuple[None, None]:
-        assert isinstance(batch, BatchMMSits), f"batch is {batch}"
-
-        despeckle_s1a, margin = despeckle(batch.sits1a)
-        despeckle_s1b, _ = despeckle(batch.sits1b)
-
-        s1a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1a,
-                                                 sits=batch.sits1a,
-                                                 original_sits=despeckle_s1a,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
-                                                 margin=margin)
-
-        s1b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1b,
-                                                 sits=batch.sits1b,
-                                                 original_sits=despeckle_s1b,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
-                                                 margin=margin)
-
-        s2a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2a,
-                                                 sits=batch.sits2a,
-                                                 original_sits=batch.sits2a.sits,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
-
-        s2b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2b,
-                                                 sits=batch.sits1b,
-                                                 original_sits=batch.sits2b.sits,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
-
-        return TotalRecLoss(
-            s1_a=s1a_rec_loss,
-            s1_b=s1b_rec_loss,
-            s2_a=s2a_rec_loss,
-            s2_b=s2b_rec_loss,
-        ), DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
-
-    def invariance_loss(self, embeddings: LatRepr):
-        creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
-        crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
-        return 1 / 2 * (crecb + creca)
 
     def load_weights(self, path_ckpt, strict=True):
         my_logger.info(f"We load state dict  from {path_ckpt}")
@@ -429,43 +374,6 @@ class AliseMM(TemplateModule, LightningModule):
         ckpt = torch.load(path_ckpt, **map_params)
         self.load_state_dict(ckpt["state_dict"], strict=strict)
 
-    def compute_one_rec_loss(self, rec_sits: RecWithOrigin,
-                             sits: BatchOneMod,
-                             original_sits: torch.Tensor,
-                             return_desp: DespeckleS1 | None = None, margin: int = 0
-                             ) -> OneViewRecL | tuple[None, DespeckleS1]:
-        valid_mask = create_mask_loss(
-            sits.padd_index, ~sits.mask
-        )  # in .mask True means pixel valid
-        h, w = sits.h, sits.w
-        if torch.sum(valid_mask) != 0:
-            valid_mask = valid_mask[
-                         ...,
-                         margin: h - margin,
-                         margin: w - margin,
-                         ]
-            return OneViewRecL(
-                monom_rec=self.rec_loss(
-                    torch.masked_select(rec_sits.same_mod[
-                                        ...,
-                                        margin: h - margin,
-                                        margin: w - margin,
-                                        ],
-                                        valid_mask),
-                    torch.masked_select(original_sits, valid_mask),
-                ),
-                crossm_rec=self.rec_loss(
-                    torch.masked_select(rec_sits.other_mod[
-                                        ...,
-                                        margin: h - margin,
-                                        margin: w - margin,
-                                        ],
-                                        valid_mask),
-                    torch.masked_select(original_sits, valid_mask),
-                ),
-            )
-        else:
-            return None, return_desp
 
     def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
         """Compute query and reshape it"""
