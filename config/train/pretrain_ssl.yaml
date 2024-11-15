@@ -1,18 +1,3 @@
-w_rec: 1
-w_inv: 5
-w_crossrec: 0.5
-rec_loss:
-  _target_: torch.nn.MSELoss
-
-
-scheduler:
-  _target_: torch.optim.lr_scheduler.CosineAnnealingWarmRestarts
-  T_0: 2
-  T_mult: 2
-
-
-optimizer_monitor: val_total_loss
-
 trainer:
   _target_: lightning.pytorch.Trainer
   log_every_n_steps: 10
@@ -33,14 +18,9 @@ trainer:
   precision: 32
   num_sanity_val_steps: 0
 
-batch_size: 1
-return_attns: true
-lr: 0.001
-seed: 1
+slurm_restart: true
 
-optimizer:
-  _target_: torch.optim.Adam
 profiler: null
 matmul_prec: high
 
-slurm_restart: true
+seed: 1

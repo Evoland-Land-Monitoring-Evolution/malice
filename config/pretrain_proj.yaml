@@ -17,21 +17,9 @@ run_id : ${now:%Y-%m-%d}_${now:%H-%M-%S}
 hydra:
   run:
     dir: ${output_dir}/logs/${name}/${run_id}
-#
-#hydra:
-#  run:
-#    dir: ${path_run_dir}/true_requeue
-#  sweep:
-#    dir: ${path_export_dir}${hydra.job.name}/requeue
-#    subdir: ${hydra.job.override_dirname}
-#  job:
-#    name: wrec${train.w_rec}_winv${train.w_inv}_wcr${train.w_crossrec}
-#path_run_dir: ${path_export_dir}/${hydra.job.name}/wrec${train.w_rec}_winv${train.w_inv}_wcr${train.w_crossrec}/bs${train.batch_size}/proj_freeze${module.projector.freeze}/seed${seed}
-load_model: true
-resume_from_checkpoint: /work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-13_16-31-04/last.ckpt #null
-path_dir_model: null
-dir_training: null
+
+resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-13_16-31-04/last.ckpt #null
+hydra_config: null
 seed: 1
-#path_export_dir: /home/ad/dumeuri/trainings/mm_mae_trainings
 verbose: 0
 

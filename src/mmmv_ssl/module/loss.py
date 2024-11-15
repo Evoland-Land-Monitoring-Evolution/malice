@@ -135,7 +135,6 @@ class InvarianceLoss(nn.Module):
         self.inv_loss = inv_loss
         self.same_mod_loss = same_mod_loss
 
-
     def compute_inv_loss(self, embeddings: LatRepr):
         """
         Compute invariance loss.
@@ -168,7 +167,7 @@ class GlobalLoss(nn.Module):
         self.w_cross_rec = w_cross_rec
 
     @staticmethod
-    def define_global_loss(self, tot_rec_loss, inv_loss):
+    def define_global_loss(tot_rec_loss, inv_loss):
         """
         Define global loss.
         """

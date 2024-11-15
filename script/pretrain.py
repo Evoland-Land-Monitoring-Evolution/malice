@@ -67,28 +67,29 @@ def main(myconfig: DictConfig):
     # else:
     #     ckpt_path = None
 
+    # Check if there is a hydra config with hyperparameters
+    config_path = myconfig.get("hydra_config")
+    if config_path is not None:
+        myconfig = DictConfig(open_yaml(config_path))
 
-    # Train the model
+    # Resume from checkpoint
     ckpt_path = myconfig.get("resume_from_checkpoint")
     if ckpt_path is not None:
         my_logger.info("Training from checkpoint %s", ckpt_path)
     else:
         my_logger.info("Training from scratch")
 
-
+    # Train the model
     datamodule: MMMaskDataModule = instantiate(
         myconfig.datamodule.datamodule,
         config_dataset=myconfig.dataset,
-        batch_size=myconfig.train.batch_size,
+        batch_size=myconfig.module.batch_size,
         _recursive_=False,
     )
     pl_module: AliseMM = instantiate(
         myconfig.module,
-        train_config=myconfig.train,
-        stats=(datamodule.all_transform.s2.stats,
-               datamodule.all_transform.s1_asc.stats
-               ),  # TODO do better than that load stats of each mod
-        # _recursive_=False,
+        _recursive_=False
+        # TODO do better than that load stats of each mod
     )
     if myconfig.get("seed"):
         seed_everything(myconfig.seed, workers=True)

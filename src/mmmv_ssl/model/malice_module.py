@@ -15,32 +15,33 @@ from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.projector import IdentityProj, ProjectorTemplate
 from mmmv_ssl.model.query_utils import TempMetaQuery
+from mmmv_ssl.model.temp_proj import TemporalProjector
 from mmmv_ssl.module.dataclass import LatRepr, Rec, RecWithOrigin, OutMMAliseF
 
 my_logger = logging.getLogger(__name__)
 
 
 class AliseMMModule(nn.Module):
-    def __init__(self, encodeur_s1, encodeur_s2, input_channels, common_temp_proj, decodeur,
-                 pe_config: DictConfig | PositionalEncoder,
+    def __init__(self, encoder, decoder, input_channels,
                  d_repr: int = 64,
-                 query_s1s2_d: int = 64,
-                 pe_channels: int = 64,
-                 projector: DictConfig | ProjectorTemplate = None,
+
                  ):
         super().__init__()
+        if isinstance(encoder, DictConfig):
+            self.encoder: MaliceEncoder = instantiate(encoder,
+                                                      input_channels=input_channels,
+                                                      d_repr=d_repr,
+                                                      _recursive_=False)
+        else:
+            self.encoder = encoder
 
-        self.encoder = MaliceEncoder(encodeur_s1,
-                                     encodeur_s2,
-                                     input_channels,
-                                     common_temp_proj,
-                                     d_repr,
-                                     projector)
-        self.decoder = MaliceDecoder(input_channels, decodeur,
-                                     pe_config,
-                                     d_repr,
-                                     query_s1s2_d,
-                                     pe_channels)
+        if isinstance(decoder, DictConfig):
+            self.decoder: MaliceDecoder = instantiate(decoder,
+                                                      input_channels=input_channels,
+                                                      d_repr=d_repr,
+                                                      _recursive_=False)
+        else:
+            self.decoder = decoder
 
     def forward(self, batch):
         repr, out_emb, mm_embedding = self.encoder(batch)
@@ -52,10 +53,10 @@ class MaliceEncoder(nn.Module):
     def __init__(self,
                  encodeur_s1,
                  encodeur_s2,
-                 input_channels,
                  common_temp_proj,
-                 d_repr: int = 64,
                  projector: DictConfig | ProjectorTemplate = None,
+                 input_channels: dict[str, int] = {"s2": 10, "s1": 3},
+                 d_repr: int = 64,
                  ):
         super().__init__()
 
@@ -64,8 +65,9 @@ class MaliceEncoder(nn.Module):
             self.encodeur_s1: CleanUBarnReprEncoder = instantiate(
                 encodeur_s1,
                 d_model=d_repr,
-                input_channels=input_channels.s1_channels,
-                _recursive_=False,
+                input_channels=input_channels["s1"],
+                _recursive_=False
+
             )
         else:
             self.encodeur_s1 = encodeur_s1
@@ -75,11 +77,17 @@ class MaliceEncoder(nn.Module):
             self.encodeur_s2: CleanUBarnReprEncoder = instantiate(
                 encodeur_s2,
                 d_model=d_repr,
-                input_channels=input_channels.s2_channels,
-                _recursive_=False,
+                input_channels=input_channels["s2"],
+                _recursive_=False
+
             )
 
-        self.common_temp_proj = common_temp_proj
+        if isinstance(common_temp_proj, TemporalProjector):
+            self.common_temp_proj = common_temp_proj
+        else:
+            self.common_temp_proj: TemporalProjector = instantiate(
+                common_temp_proj, input_channels=self.encodeur_s2.ubarn.d_model
+            )
 
         if isinstance(projector, DictConfig):
             self.projector_emb = instantiate(projector, input_channels=d_repr)
@@ -180,11 +188,12 @@ class MaliceEncoder(nn.Module):
 
 
 class MaliceDecoder(nn.Module):
-    def __init__(self, input_channels, decodeur,
+    def __init__(self, decodeur,
                  pe_config: DictConfig | PositionalEncoder,
-                 d_repr: int = 64,
                  query_s1s2_d: int = 64,
                  pe_channels: int = 64,
+                 input_channels: dict[str, int] = {"s2": 10, "s1": 3},
+                 d_repr: int = 64,
                  ):
         super().__init__()
 
@@ -207,11 +216,11 @@ class MaliceDecoder(nn.Module):
         self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
 
         self.proj_s1 = torch.nn.Linear(
-            self.meta_decodeur.input_channels, input_channels.s1_channels
+            self.meta_decodeur.input_channels, input_channels["s1"]
         )
 
         self.proj_s2 = torch.nn.Linear(
-            self.meta_decodeur.input_channels, input_channels.s2_channels
+            self.meta_decodeur.input_channels, input_channels["s2"]
         )
 
     def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
