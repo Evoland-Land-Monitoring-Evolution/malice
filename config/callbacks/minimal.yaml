@@ -3,7 +3,7 @@ learningrate:
 
 stopping:
   _target_: lightning.pytorch.callbacks.EarlyStopping
-  monitor: val_total_loss
+  monitor: val/total_loss
   mode: min
   patience: 20
 

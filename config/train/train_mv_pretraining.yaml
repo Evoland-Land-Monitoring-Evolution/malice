@@ -12,7 +12,7 @@ scheduler:
   T_mult: 2
 
 
-optimizer_monitor: val_total_loss
+optimizer_monitor: val/total_loss
 
 trainer:
   _target_: lightning.pytorch.Trainer

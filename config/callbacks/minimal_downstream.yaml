@@ -14,4 +14,4 @@ checkpoint:
   save_top_k: 2
   save_last: true
   auto_insert_metric_name: true
-  filename: metric-{epoch:02d}-${val/total_loss}
+  filename: metric-{epoch:02d}-{val/loss}

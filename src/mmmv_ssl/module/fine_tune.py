@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Literal
 
 import torch
@@ -16,6 +17,8 @@ from mt_ssl.module.template import TemplateClassifModule
 from mt_ssl.module.template_ft_module import FTParams
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
+from openeo_mmdc.dataset.padding import apply_padding
+from openeo_mmdc.dataset.to_tensor import load_transform_one_mod
 from torch import nn
 from torchmetrics import MetricCollection
 
@@ -34,9 +37,9 @@ class FineTuneOneMod(TemplateClassifModule):
         input_channels: int,
         num_classes: int,
         decoder_config: DictConfig | ConfigDecoder | ConfigShallowClassifier,
-        stats: Stats | None = None,
         mod: Literal["s1", "s2"] = "s2",
         decoder_type: Literal["linear", "master_query"] = "linear",
+        stats: Stats | None = None,
     ):
         super().__init__(train_config, input_channels, num_classes, stats)
         if isinstance(ft_params, dict):
@@ -44,7 +47,6 @@ class FineTuneOneMod(TemplateClassifModule):
         pretrained_module: AliseMM = load_malice(
             pl_module=ft_params.pl_module,
             path_ckpt=ft_params.ckpt_path,
-            params_module=ft_params.pretrain_module_config,
         )
 
         self.freeze_repr_encoder = ft_params.freeze_representation_encoder
@@ -107,6 +109,46 @@ class FineTuneOneMod(TemplateClassifModule):
     def forward(
         self, batch: ClassifBInput, return_attns: bool = False
     ) -> OutFTForward:
+        #
+        # PATH_DIR=Path("/work/scratch/data/kalinie/results/alise_preentrained")# modify
+        #
+        # PATH_DATA="/work/CESBIO/projects/DeepChange/Iris/PASTIS/PT_FORMAT/S2_10000.pt"
+        # PATH_CSV=PATH_DIR.joinpath("data") #modify
+        # data=torch.load(PATH_DATA)
+        # transform=load_transform_one_mod(PATH_CSV,mod="s2").transform
+        #
+        # sits_s2 = rearrange(data.sits, "c t h w-> t c h w")
+        # doy = data.doy
+        #
+        # sits_s2_, doy_, padd_index_ = apply_padding(allow_padd=True, max_len=61, t=sits_s2.shape[0], sits=sits_s2, doy=doy)
+        #
+        # norm_s2_=rearrange(transform(rearrange(sits_s2_,'t c h w -> c t h w')),'c t h w -> 1 t c h w ')[:, :, :, 32:-32, 32:-32]
+        #
+        # from mmmv_ssl.model.sits_encoder import MonoSITSEncoder
+        # from mt_ssl.data.classif_class import ClassifBInput
+        #
+        # DEVICE = 'cuda'
+        #
+        # input_12 = ClassifBInput(sits=norm_s2_.to(DEVICE), input_doy=doy_[None, :].to(DEVICE),
+        #                   padd_index=padd_index_[None, :].to(DEVICE),
+        #                   mask=None, labels=None)
+        #
+        # output_torch_file = "/work/scratch/data/kalinie/results/alise_preentrained/malice_new_s2.pth"
+        #
+        # repr = torch.load(output_torch_file)
+        # repr.eval()
+        # out2 = repr.forward_keep_input_dim(input_12).repr
+        # if self.freeze_repr_encoder:
+        #     self.repr_encoder.eval()
+        #     with torch.no_grad():
+        #         out_repr = self.forward_representation_encoder(
+        #             input_12, return_attns=return_attns
+        #         )
+        # torch.set_printoptions(precision=20)
+        #
+        # print(out_repr.repr)
+        # print(out_repr.repr[-1, -1, -1, -1, -10])
+        # exit()
         if self.freeze_repr_encoder:
             self.repr_encoder.eval()
             with torch.no_grad():

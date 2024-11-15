@@ -8,7 +8,7 @@
 #SBATCH --gres=gpu:1                # number of gpus
 #SBATCH --partition=gpu_a100        # partition
 #SBATCH --qos=gpu_all               # QoS
-#SBATCH --time=12:00:00             # Walltime 10mn
+#SBATCH --time=19:00:00             # Walltime 10mn
 #SBATCH --mem-per-cpu=7G         # memory per core 
 #SBATCH --account=cesbio       # MANDATORY : account (launch myaccounts to list your accounts) 
 # #SBATCH --export=none              #  to start the job with a clean environnement and source of ~/.bashrc
@@ -24,4 +24,4 @@ export PYTHONWARNINGS="ignore"
 
 cd /work/scratch/data/kalinie/src/MMDC/mmmv_sits_ssl
                     
-python script/pretrain.py --config-name=pretrain_proj.yaml callbacks=mae_clb seed=0 train.w_inv=5 dataset=mask_mm.yaml train.trainer.precision=32 module=alise_mm_proj hydra.job.name=mm_mae_sd_speckle_all_fix load_model=false module.projector.freeze=true  train.w_crossrec=0.5
+python -O script/pretrain.py python -O script/pretrain.py --config-name=pretrain_proj.yaml callbacks=mae_clb seed=0 module.weights.w_inv=5 dataset=mask_mm.yaml train.trainer.precision=32 module=alise_mm_proj hydra.job.name=mm_mae_sd_speckle_all_fix module.weights.w_crossrec=0.5

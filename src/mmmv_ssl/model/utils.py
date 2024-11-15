@@ -8,14 +8,14 @@ def build_encoder(
     pretrained_module: AliseMM, mod: Literal["s1", "s2"] = "s2"
 ) -> MonoSITSEncoder:
     if mod == "s1":
-        ubarn = pretrained_module.encodeur_s1.ubarn
-        temp_proj = pretrained_module.common_temp_proj.ca_s1
+        ubarn = pretrained_module.model.encoder.encodeur_s1.ubarn
+        temp_proj = pretrained_module.model.encoder.common_temp_proj.ca_s1
     elif mod == "s2":
-        ubarn = pretrained_module.encodeur_s2.ubarn
-        temp_proj = pretrained_module.common_temp_proj.ca_s2
+        ubarn = pretrained_module.model.encoder.encodeur_s2.ubarn
+        temp_proj = pretrained_module.model.encoder.common_temp_proj.ca_s2
     else:
         raise NotImplementedError
-    query = pretrained_module.common_temp_proj.Q
+    query = pretrained_module.model.encoder.common_temp_proj.Q
     return MonoSITSEncoder(
         ubarn=ubarn,
         temp_proj_one_mod=temp_proj,

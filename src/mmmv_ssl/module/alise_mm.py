@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import torch
 from einops import rearrange, repeat
@@ -115,7 +116,7 @@ class AliseMM(TemplateModule):
         )
 
 
-def load_malice(pl_module: AliseMM, path_ckpt, params_module: DictConfig):
+def load_malice(pl_module: AliseMM, path_ckpt: str | Path):
     if path_ckpt is not None:
         pl_module = pl_module.load_from_checkpoint(path_ckpt)
 
