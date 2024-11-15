@@ -9,7 +9,7 @@ stopping:
 
 checkpoint:
   _target_: lightning.pytorch.callbacks.ModelCheckpoint
-  monitor: val_total_loss
+  monitor: val/total_loss
   verbose: true
   save_top_k: 2
   save_last: true

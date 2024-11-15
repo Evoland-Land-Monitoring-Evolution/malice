@@ -85,11 +85,10 @@ def main(myconfig: DictConfig):
     pl_module: AliseMM = instantiate(
         myconfig.module,
         train_config=myconfig.train,
-        input_channels=datamodule.num_channels,
         stats=(datamodule.all_transform.s2.stats,
                datamodule.all_transform.s1_asc.stats
                ),  # TODO do better than that load stats of each mod
-        _recursive_=False,
+        # _recursive_=False,
     )
     if myconfig.get("seed"):
         seed_everything(myconfig.seed, workers=True)

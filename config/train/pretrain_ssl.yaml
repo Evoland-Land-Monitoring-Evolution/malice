@@ -17,9 +17,9 @@ trainer:
   _target_: lightning.pytorch.Trainer
   log_every_n_steps: 10
   num_nodes: 1
-  devices: -1
+  devices: 1
   val_check_interval: 1.0
-  accelerator: gpu
+  accelerator: cpu
   deterministic: false
   enable_model_summary: false
   max_epochs: 150
