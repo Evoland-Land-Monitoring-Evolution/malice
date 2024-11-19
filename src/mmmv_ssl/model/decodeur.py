@@ -8,7 +8,7 @@ from hydra.utils import instantiate
 from omegaconf import DictConfig
 from torch import Tensor
 
-from mmmv_ssl.model.transformer import TransformerBlock
+from mmmv_ssl.model.transformer import TransformerBlock, TransformerBlockConfig
 
 my_logger = logging.getLogger(__name__)
 
@@ -80,7 +80,7 @@ class MetaDecoder(nn.Module):
         input_channels: int,
         d_k: int,
         d_q_in: int,
-        intermediate_layers: DictConfig | TransformerBlock = None,
+        intermediate_layers: DictConfig | TransformerBlock | TransformerBlockConfig | None = None,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -91,13 +91,15 @@ class MetaDecoder(nn.Module):
         self.input_channels = input_channels
         if intermediate_layers is None:
             self.intermediate_layers = None
-        elif isinstance(intermediate_layers, TransformerBlock):
-            self.intermediate_layers = intermediate_layers
-        elif isinstance(intermediate_layers, DictConfig):
-            transformer_config = instantiate(intermediate_layers.config)
-            print(transformer_config)
-            transformer_config.d_model = input_channels
-            self.intermediate_layers = TransformerBlock(transformer_config)
+        elif isinstance(intermediate_layers, TransformerBlockConfig):
+            self.intermediate_layers = TransformerBlock(intermediate_layers)
+        # elif isinstance(intermediate_layers, TransformerBlock):
+        #     self.intermediate_layers = intermediate_layers
+        # elif isinstance(intermediate_layers, DictConfig):
+        #     transformer_config = instantiate(intermediate_layers.config)
+        #     print(transformer_config)
+        #     transformer_config.d_model = input_channels
+        #     self.intermediate_layers = TransformerBlock(transformer_config)
         else:
             raise NotImplementedError
 

@@ -13,7 +13,7 @@ from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
-from mmmv_ssl.model.projector import IdentityProj, ProjectorTemplate
+from mmmv_ssl.model.projector import IdentityProj, ProjectorTemplate, AliseProj
 from mmmv_ssl.model.query_utils import TempMetaQuery
 from mmmv_ssl.model.temp_proj import TemporalProjector
 from mmmv_ssl.module.dataclass import LatRepr, Rec, RecWithOrigin, OutMMAliseF
@@ -54,7 +54,7 @@ class MaliceEncoder(nn.Module):
                  encodeur_s1,
                  encodeur_s2,
                  common_temp_proj,
-                 projector: DictConfig | ProjectorTemplate = None,
+                 projector: DictConfig | ProjectorTemplate | AliseProj = None,
                  input_channels: dict[str, int] = {"s2": 10, "s1": 3},
                  d_repr: int = 64,
                  ):
@@ -94,7 +94,7 @@ class MaliceEncoder(nn.Module):
         elif (projector is None) or (self.w_inv == 0):
             self.projector_emb = IdentityProj()
         else:
-            self.projector_emb = projector
+            self.projector_emb: AliseProj = projector
 
     def compute_mm_embeddings(self, aligned_repr: OutTempProjForward, h: int, w: int):
         embedding_s1 = rearrange(
@@ -187,41 +187,85 @@ class MaliceEncoder(nn.Module):
         return repr, out_emb, mm_embedding
 
 
-class MaliceDecoder(nn.Module):
-    def __init__(self, decodeur,
-                 pe_config: DictConfig | PositionalEncoder,
-                 query_s1s2_d: int = 64,
-                 pe_channels: int = 64,
-                 input_channels: dict[str, int] = {"s2": 10, "s1": 3},
-                 d_repr: int = 64,
-                 ):
-        super().__init__()
+# class MaliceDecoder(nn.Module):
+#     def __init__(self, decodeur,
+#                  pe_config: DictConfig | PositionalEncoder,
+#                  query_s1s2_d: int = 64,
+#                  pe_channels: int = 64,
+#                  input_channels: dict[str, int] = {"s2": 10, "s1": 3},
+#                  d_repr: int = 64,
+#                  ):
+#         super().__init__()
+#
+#         if isinstance(decodeur, DictConfig):
+#             self.meta_decodeur = instantiate(
+#                 decodeur,
+#                 input_channels=d_repr,
+#                 d_q_in=(query_s1s2_d + pe_channels),
+#                 _recursive_=False,
+#             )
+#             # print(pe_channels+query_s1s2_d)
+#         else:
+#             self.meta_decodeur: MetaDecoder = decodeur
+#
+#         self.query_builder = TempMetaQuery(
+#             pe_config=pe_config, input_channels=pe_channels
+#         )
+#
+#         self.q_decod_s1 = self.define_query_decoder(query_s1s2_d)
+#         self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
+#
+#         self.proj_s1 = torch.nn.Linear(
+#             self.meta_decodeur.input_channels, input_channels["s1"]
+#         )
+#
+#         self.proj_s2 = torch.nn.Linear(
+#             self.meta_decodeur.input_channels, input_channels["s2"]
+#         )
 
-        if isinstance(decodeur, DictConfig):
-            self.meta_decodeur = instantiate(
-                decodeur,
+    class MaliceDecoder(nn.Module):
+        def __init__(self, decodeur,
+                     pe_config: DictConfig | PositionalEncoder,
+                     query_s1s2_d: int = 64,
+                     pe_channels: int = 64,
+                     input_channels: dict[str, int] = {"s2": 10, "s1": 3},
+                     d_repr: int = 64,
+                     ):
+            super().__init__()
+
+            self.meta_decodeur = MetaDecoder(
+                num_heads=decodeur.num_heads,
                 input_channels=d_repr,
                 d_q_in=(query_s1s2_d + pe_channels),
-                _recursive_=False,
+                d_k=decodeur.d_k,
+                intermediate_layers=decodeur.intermediate_layers
             )
-            # print(pe_channels+query_s1s2_d)
-        else:
-            self.meta_decodeur: MetaDecoder = decodeur
+            #
+            # if isinstance(decodeur, DictConfig):
+            #     self.meta_decodeur = instantiate(
+            #         decodeur,
+            #         input_channels=d_repr,
+            #         d_q_in=(query_s1s2_d + pe_channels),
+            #         _recursive_=False,
+            #     )
+            #     # print(pe_channels+query_s1s2_d)
+            # else:
+            #     self.meta_decodeur: MetaDecoder = decodeur
 
-        self.query_builder = TempMetaQuery(
-            pe_config=pe_config, input_channels=pe_channels
-        )
+            self.query_builder = TempMetaQuery(
+                pe_config=pe_config, input_channels=pe_channels
+            )
 
-        self.q_decod_s1 = self.define_query_decoder(query_s1s2_d)
-        self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
+            self.q_decod_s1 = self.define_query_decoder(query_s1s2_d)
+            self.q_decod_s2 = self.define_query_decoder(query_s1s2_d)
 
-        self.proj_s1 = torch.nn.Linear(
-            self.meta_decodeur.input_channels, input_channels["s1"]
-        )
+            self.proj_s1 = torch.nn.Linear(
+                self.meta_decodeur.input_channels, input_channels["s1"]
+            )
 
-        self.proj_s2 = torch.nn.Linear(
-            self.meta_decodeur.input_channels, input_channels["s2"]
-        )
+            self.proj_s2 = torch.nn.Linear(
+                self.meta_decodeur.input_channels, input_channels["s2"]
+            )
 
     def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
         """Compute query and reshape it"""
@@ -238,7 +282,7 @@ class MaliceDecoder(nn.Module):
         )
 
     @staticmethod
-    def define_query_decoder(query):
+    def define_query_decoder(query: torch.Tensor) -> nn.Parameter:
         q_decod = nn.Parameter(
             torch.zeros(query)
         ).requires_grad_(True)

@@ -11,14 +11,20 @@ from mmmv_ssl.model.encoding import PositionalEncoder
 class TempMetaQuery(nn.Module):
     def __init__(self, pe_config, input_channels):
         super().__init__()
-        if isinstance(pe_config, DictConfig | PEConfig):
-            self.pe_encoding: PositionalEncoder = instantiate(
-                pe_config, d=input_channels
-            )
-        elif isinstance(pe_config, PositionalEncoder):
-            self.pe_encoding: PositionalEncoder = pe_config
-        else:
-            raise NotImplementedError
+        # if isinstance(pe_config, DictConfig | PEConfig):
+        #     self.pe_encoding: PositionalEncoder = instantiate(
+        #         pe_config, d=input_channels
+        #     )
+        # elif isinstance(pe_config, PositionalEncoder):
+        #     self.pe_encoding: PositionalEncoder = pe_config
+        # else:
+        #     raise NotImplementedError
+
+        self.pe_encoding = PositionalEncoder(
+            d=input_channels
+        )
+
+
 
     def forward(self, q, doy):
         """
