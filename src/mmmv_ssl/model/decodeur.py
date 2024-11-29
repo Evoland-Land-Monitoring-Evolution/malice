@@ -91,7 +91,7 @@ class MetaDecoder(nn.Module):
         self.input_channels = input_channels
         if intermediate_layers is None:
             self.intermediate_layers = None
-        elif isinstance(intermediate_layers, TransformerBlockConfig):
+        else:
             self.intermediate_layers = TransformerBlock(intermediate_layers)
         # elif isinstance(intermediate_layers, TransformerBlock):
         #     self.intermediate_layers = intermediate_layers
@@ -100,8 +100,6 @@ class MetaDecoder(nn.Module):
         #     print(transformer_config)
         #     transformer_config.d_model = input_channels
         #     self.intermediate_layers = TransformerBlock(transformer_config)
-        else:
-            raise NotImplementedError
 
     def forward(self, mm_sits: Tensor, padd_mm: Tensor, mm_queries: Tensor):
         """

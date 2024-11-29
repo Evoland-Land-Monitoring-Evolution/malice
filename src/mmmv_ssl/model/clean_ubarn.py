@@ -10,11 +10,14 @@ from mt_ssl.data.mask import permutate_flagged_patches
 from mt_ssl.data.mt_batch import BInput5d, BOutputUBarn
 from mt_ssl.model.attention import MultiHeadAttention
 from mt_ssl.model.convolutionalblock import ConvBlock
-from mt_ssl.model.encoding import InputEncoding, LearnedPE
 from mt_ssl.model.norm import AdaptedLayerNorm
+from mt_ssl.model.utae_unet import Unet
 from omegaconf import DictConfig
 from torch import Tensor, nn
 from torch.nn import TransformerEncoder, TransformerEncoderLayer
+
+from mmmv_ssl.model.datatypes import UnetConfig
+from mmmv_ssl.model.encoding import PositionalEncoder
 
 my_logger = logging.getLogger(__name__)
 
@@ -23,14 +26,14 @@ class EncoderTransformerLayer2(nn.Module):
     """Transformer encoder layer"""
 
     def __init__(
-        self,
-        d_model: int,
-        d_in: int,
-        nhead: int = 1,
-        norm_first: bool = False,
-        block_name: Literal["se", "basicconv", "pff", "last", "cnn11"] = "se",
-        dropout=0.1,
-        attn_dropout: float = 0,
+            self,
+            d_model: int,
+            d_in: int,
+            nhead: int = 1,
+            norm_first: bool = False,
+            block_name: Literal["se", "basicconv", "pff", "last", "cnn11"] = "se",
+            dropout=0.1,
+            attn_dropout: float = 0,
     ):
         super().__init__()
 
@@ -49,12 +52,12 @@ class EncoderTransformerLayer2(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(
-        self,
-        input,
-        src_mask=None,
-        key_padding_mask=None,
-        is_causal=False,
-        src_key_padding_mask=None,
+            self,
+            input,
+            src_mask=None,
+            key_padding_mask=None,
+            is_causal=False,
+            src_key_padding_mask=None,
     ):
         """
 
@@ -107,15 +110,15 @@ class Encoder2(nn.Module):
     /132907dd272e2cc92e3c10e6c4e783a87ff8893d/transformer/Models.py#L48"""
 
     def __init__(
-        self,
-        n_layers: int,
-        d_model: int,
-        d_in: int,
-        dropout=0.1,
-        block_name: Literal["se", "pff", "basicconv"] = "se",
-        norm_first: bool = False,
-        nhead: int = 1,
-        attn_dropout: float = 0.1,
+            self,
+            n_layers: int,
+            d_model: int,
+            d_in: int,
+            dropout=0.1,
+            block_name: Literal["se", "pff", "basicconv"] = "se",
+            norm_first: bool = False,
+            nhead: int = 1,
+            attn_dropout: float = 0.1,
     ):
         super().__init__()
         self.nhead = nhead
@@ -137,11 +140,11 @@ class Encoder2(nn.Module):
         self.layer_norm = nn.LayerNorm(d_model, eps=1e-6)
 
     def forward(
-        self,
-        input: torch.Tensor,
-        return_attns: bool = False,
-        src_key_padding_mask: None | torch.Tensor = None,
-        src_mask: None | torch.Tensor = None,
+            self,
+            input: torch.Tensor,
+            return_attns: bool = False,
+            src_key_padding_mask: None | torch.Tensor = None,
+            src_mask: None | torch.Tensor = None,
     ) -> tuple[torch.Tensor, list[torch.Tensor] | None]:
         my_logger.debug(f"input enc   {input.shape}")
         enc_slf_attn_list = []
@@ -174,28 +177,33 @@ class CleanUBarn(nn.Module):
         input_channels: int = 10,
         nhead: int = 4,
         attn_dropout: float = 0.1,
-        encoding_config: DictConfig | None = None,
-        max_len_pe: int = 3000,
+        encoding_config: UnetConfig = UnetConfig(),
+        # max_len_pe: int = 3000,
         pe_cst: int = 10000,
-        pe_module: nn.Module | None = None,
         use_transformer: bool = True,
-        use_pytorch_transformer=True,
-        *args,
-        **kwargs,
+        use_pytorch_transformer:bool =True,
     ):
-        super().__init__(*args, **kwargs)
-        self.ne_layers = ne_layers
-        self.d_model = d_model
-        self.d_hidden = d_hidden
-        self.dropout = dropout
-        self.block_name = block_name
-        self.norm_first = norm_first
-        self.input_channels = input_channels
-        self.nhead = nhead
-        self.attn_dropout = attn_dropout
-        self.encoding_config = encoding_config
-        self.max_len_pe = max_len_pe
-        self.pe_cst = pe_cst
+        super().__init__()
+        # self.ne_layers = ne_layers
+        # self.d_model = d_model
+        # self.d_hidden = d_hidden
+        # self.dropout = dropout
+        # self.block_name = block_name
+        # self.norm_first = norm_first
+        # self.input_channels = input_channels
+        # self.nhead = nhead
+        # self.attn_dropout = attn_dropout
+        # self.encoding_config = encoding_config
+        # self.max_len_pe = max_len_pe
+        # self.pe_cst = pe_cst
+
+        self.patch_encoding = InputEncoding(
+            inplanes=input_channels,
+            planes=d_model,
+            unet_config=encoding_config,
+            pe_cst=pe_cst,
+        )
+
         if use_transformer:
             if use_pytorch_transformer:
                 encoder_layer = TransformerEncoderLayer(
@@ -222,15 +230,6 @@ class CleanUBarn(nn.Module):
                 )
         else:
             self.temporal_encoder = None
-        print(f"PE module {pe_module} type {type(pe_module)}")
-        self.patch_encoding = InputEncoding(
-            inplanes=input_channels,
-            planes=d_model,
-            dropout=dropout,
-            model_config=encoding_config,
-            pe_cst=pe_cst,
-            pe_module=pe_module,
-        )
 
     def forward(
         self,
@@ -248,7 +247,7 @@ class CleanUBarn(nn.Module):
 
         """
         x, doy_encoding = self.patch_encoding(
-            batch_input.sits, batch_input.input_doy, batch_input.true_doy
+            batch_input.sits, batch_input.input_doy, batch_input.true_doy, mask=batch_input.padd_index
         )
         if apply_corruption and isinstance(batch_input, InputBERTBatch):
             x = self.masking(
@@ -275,7 +274,7 @@ class CleanUBarn(nn.Module):
                 x,
                 src_key_padding_mask=padd_index,
             )
-            my_logger.debug(f"padd_index {padd_index[0,:]}")
+            my_logger.debug(f"padd_index {padd_index[0, :]}")
             my_logger.debug(f"output ubarn clean {x.shape}")
             if isinstance(self.temporal_encoder, TransformerEncoder):
                 x = rearrange(x, "(b h w ) t c -> b t c h w ", b=b, h=h, w=w)
@@ -285,7 +284,7 @@ class CleanUBarn(nn.Module):
         return BOutputUBarn(x, None)
 
     def masking(
-        self, myinput: Tensor, mask_encoding: Tensor, pad_index: Tensor
+            self, myinput: Tensor, mask_encoding: Tensor, pad_index: Tensor
     ):
         """
 
@@ -329,9 +328,73 @@ class ConfigUbarn:
     nhead: int = (4,)
     attn_dropout: float = (0.1,)
     encoding_config: DictConfig | None = (None,)
-    pe_module: LearnedPE | None = None
+    pe_module: PositionalEncoder | None = None
     max_len_pe: int = (3000,)
     pe_cst: int = 10000
     use_transformer: bool = True
     args: list = None
     kwargs: dict = None
+
+
+class InputEncoding(nn.Module):
+    def __init__(
+            self,
+            inplanes: int,
+            planes: int,
+            unet_config: UnetConfig,
+            pe_cst: int = 1000,
+    ):
+        super().__init__()
+        self.hss_encoding = HSSEncoding(
+            input_channels=inplanes, d_model=planes, model_config=unet_config
+        )
+        self.pe_encoding = PositionalEncoder(d=planes, T=pe_cst)  # TODO: do smth here
+
+    def forward(
+            self, x: Tensor, doy_list: Tensor, true_doy_list: Tensor | None = None, mask: Tensor | None = None
+    ):
+        input_encodding = self.hss_encoding(x, mask)
+        doy_encoding = self.pe_encoding(doy_list)
+        doy_encoding = rearrange(doy_encoding, " b n c-> b n c 1 1")
+        return input_encodding, doy_encoding.to(input_encodding)
+
+
+class HSSEncoding(nn.Module):  # Hyperspectral & spatial encoding
+    def __init__(
+            self,
+            input_channels,
+            d_model: int = 32,
+            model_config: UnetConfig | None = None,
+    ):
+        super().__init__()
+        my_logger.debug(f"Input encoding planes is {d_model}")
+        self.d_model = d_model
+
+        self.my_model = Unet(
+            inplanes=input_channels,
+            planes=d_model,
+            encoder_widths=model_config.encoder_widths,
+            decoder_widths=model_config.decoder_widths,
+            encoder_norm=model_config.encoder_norm,
+            padding_mode=model_config.padding_mode,
+            decoding_norm=model_config.decoding_norm,
+            return_maps=model_config.return_maps,
+            str_conv_k=model_config.str_conv_k,
+            str_conv_s=model_config.str_conv_s,
+            str_conv_p=model_config.str_conv_p,
+            border_size=model_config.border_size,
+            skip_conv_norm=model_config.skip_conv_norm)
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None):
+        b, n, c, h, w = x.shape
+        x = rearrange(x, "b n c h w -> (b n ) c h w")
+        if mask is not None:
+            mask = rearrange(mask, "b n -> (b n )")
+            x = self.my_model(x[~mask])
+            x_res = torch.zeros(b * n, x.shape[1], h, w)
+            x_res[~mask] = x
+            x = x_res
+        else:
+            x = self.my_model(x)
+        x = rearrange(x, "( b n ) c h w -> b n c h w ", b=b)
+        return x

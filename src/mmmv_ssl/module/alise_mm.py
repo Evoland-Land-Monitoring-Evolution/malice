@@ -3,10 +3,10 @@ from pathlib import Path
 
 import torch
 from einops import rearrange, repeat
-from omegaconf import DictConfig
 
 from mmmv_ssl.data.dataclass import BatchMMSits, BatchOneMod
 from mmmv_ssl.model.malice_module import AliseMMModule
+from mmmv_ssl.model.projector import IdentityProj
 from mmmv_ssl.module.dataclass import (
     OutMMAliseF,
     OutMMAliseSharedStep,
@@ -15,7 +15,6 @@ from mmmv_ssl.module.loss import ReconstructionLoss, InvarianceLoss, GlobalLoss
 from mmmv_ssl.module.template import TemplateModule
 
 my_logger = logging.getLogger(__name__)
-
 
 
 class AliseMM(TemplateModule):
@@ -32,12 +31,16 @@ class AliseMM(TemplateModule):
         self.rec_loss = ReconstructionLoss(torch.nn.MSELoss())
         self.global_loss = GlobalLoss(weights.w_inv, weights.w_rec, weights.w_crossrec)
 
+        if weights.w_inv == 0:
+            self.model.encoder.projector_emb = IdentityProj()
+
         for name, param in self.model.named_parameters():
             print(name, param.requires_grad)
 
+        print(self.model)
+
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         return self.model.forward(batch)
-
 
     def shared_step(self, batch: BatchMMSits) -> OutMMAliseSharedStep:
         out_model = self.forward(batch)
@@ -90,7 +93,6 @@ class AliseMM(TemplateModule):
             )
         return out_shared_step
 
-
     def load_weights(self, path_ckpt, strict=True):
         my_logger.info(f"We load state dict  from {path_ckpt}")
         if not torch.cuda.is_available():
@@ -99,7 +101,6 @@ class AliseMM(TemplateModule):
             map_params = {}
         ckpt = torch.load(path_ckpt, **map_params)
         self.load_state_dict(ckpt["state_dict"], strict=strict)
-
 
     def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
         """Compute query and reshape it"""
