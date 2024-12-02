@@ -391,7 +391,7 @@ class HSSEncoding(nn.Module):  # Hyperspectral & spatial encoding
         if mask is not None:
             mask = rearrange(mask, "b n -> (b n )")
             x = self.my_model(x[~mask])
-            x_res = torch.zeros(b * n, x.shape[1], h, w)
+            x_res = torch.zeros(b * n, x.shape[1], h, w).to(x.device)
             x_res[~mask] = x
             x = x_res
         else:

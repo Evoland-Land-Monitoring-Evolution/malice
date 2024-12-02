@@ -39,6 +39,7 @@ class AliseMM(TemplateModule):
 
         print(self.model)
 
+
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         return self.model.forward(batch)
 

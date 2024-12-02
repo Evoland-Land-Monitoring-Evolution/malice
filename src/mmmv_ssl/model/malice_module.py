@@ -207,7 +207,7 @@ class MaliceDecoder(nn.Module):
     def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
         """Compute query and reshape it"""
         query = repeat(
-            self.query_builder(self.q_decod_s2 if sat == "s1" else self.q_decod_s1, batch_sits.input_doy),
+            self.query_builder(self.q_decod_s2 if "2" in sat else self.q_decod_s1, batch_sits.input_doy),
             "b t c -> b t c h w",
             h=batch_sits.h,
             w=batch_sits.w,
@@ -235,7 +235,6 @@ class MaliceDecoder(nn.Module):
         query_s2b = self.compute_query(batch_sits=batch.sits2b, sat="s2")
         query_s1a = self.compute_query(batch_sits=batch.sits1a, sat="s1")
         query_s1b = self.compute_query(batch_sits=batch.sits1b, sat="s1")
-
         my_logger.debug(f"query decoder s2 {query_s2b.shape}")
 
         mm_queries = torch.cat(

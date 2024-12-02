@@ -109,7 +109,7 @@ class ReconstructionLoss(nn.Module):
                                                  return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
 
         s2b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2b,
-                                                 sits=batch.sits1b,
+                                                 sits=batch.sits2b,
                                                  original_sits=batch.sits2b.sits,
                                                  return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
 
