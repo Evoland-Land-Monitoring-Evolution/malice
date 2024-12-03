@@ -18,7 +18,7 @@ hydra:
   run:
     dir: ${output_dir}/logs/${name}/${run_id}
 
-resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-13_16-31-04/last.ckpt #null
+resume_from_checkpoint: /work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-29_17-13-45/last.ckpt #null
 hydra_config: null
 seed: 1
 verbose: 0

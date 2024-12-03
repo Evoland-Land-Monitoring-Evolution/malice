@@ -55,8 +55,8 @@ model:
       n_q: 10
     projector:
       _target_: mmmv_ssl.model.datatypes.AliseProjConfig
-      l_dim: [ 64 ]
-      out_channels: 64
+      l_dim: [ 32 ]
+      out_channels: 32
       freeze: true
   decoder:
     _target_: mmmv_ssl.model.datatypes.DecoderConfig
@@ -73,7 +73,7 @@ model:
     _target_: mmmv_ssl.model.datatypes.DataInputChannels
     s2: 10
     s1: 3
-  d_repr: 64
+  d_repr: 32
 
 weights:
   w_rec: 1

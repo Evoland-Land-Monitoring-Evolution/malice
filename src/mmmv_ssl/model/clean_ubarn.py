@@ -197,6 +197,9 @@ class CleanUBarn(nn.Module):
         # self.max_len_pe = max_len_pe
         # self.pe_cst = pe_cst
 
+        self.d_model = d_model
+        self.input_channels = input_channels
+
         self.patch_encoding = InputEncoding(
             inplanes=input_channels,
             planes=d_model,
