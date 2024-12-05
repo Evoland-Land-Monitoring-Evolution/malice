@@ -83,7 +83,6 @@ def main(myconfig: DictConfig):
     datamodule: MMMaskDataModule = instantiate(
         myconfig.datamodule.datamodule,
         config_dataset=myconfig.dataset,
-        batch_size=myconfig.module.batch_size,
         _recursive_=False,
     )
     pl_module: AliseMM = instantiate(

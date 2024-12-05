@@ -1,14 +1,17 @@
+# pylint: disable=invalid-name
+"""
+Meta-decoder with cross-attention
+"""
+
 import logging
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from einops import rearrange
-from hydra.utils import instantiate
-from omegaconf import DictConfig
-from torch import Tensor
 
-from mmmv_ssl.model.transformer import TransformerBlock, TransformerBlockConfig
+from mmmv_ssl.model.transformer import TransformerBlock
+from mmmv_ssl.model.datatypes import TransformerBlockConfig
 
 my_logger = logging.getLogger(__name__)
 
@@ -26,18 +29,19 @@ class LearnedQMultiHeadAttention(nn.Module):
         self.d_in = d_in
         self.fc1_k = nn.Linear(d_in, n_head * d_k, bias=False)
         self.fc1_q = nn.Linear(d_q_in, n_head * d_k, bias=False)
-        nn.init.normal_(self.fc1_k.weight, mean=0, std=np.sqrt(2.0 / (d_k)))
+        nn.init.normal_(self.fc1_k.weight, mean=0, std=np.sqrt(2.0 / d_k))
 
-    def forward(self, v, q, pad_mask=None):
+    def forward(self,
+                v: torch.Tensor,
+                q: torch.Tensor,
+                pad_mask: torch.Tensor = None) -> torch.Tensor:
         """
-
         Args:
             v (): b,t,c
             q: queries
             pad_mask (): b,t, true means the value should take part in attention
 
         Returns:
-
         """
         d_k, n_head = self.d_k, self.n_head
         sz_b, seq_len, _ = v.size()
@@ -73,14 +77,16 @@ class LearnedQMultiHeadAttention(nn.Module):
 
 
 class MetaDecoder(nn.Module):
-
+    """
+    Common meta-decoder for S1/S2 reconstruction
+    """
     def __init__(
-        self,
-        num_heads: int,
-        input_channels: int,
-        d_k: int,
-        d_q_in: int,
-        intermediate_layers: DictConfig | TransformerBlock | TransformerBlockConfig | None = None,
+            self,
+            num_heads: int,
+            input_channels: int,
+            d_k: int,
+            d_q_in: int,
+            intermediate_layers: TransformerBlockConfig | None = None,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -101,7 +107,11 @@ class MetaDecoder(nn.Module):
         #     transformer_config.d_model = input_channels
         #     self.intermediate_layers = TransformerBlock(transformer_config)
 
-    def forward(self, mm_sits: Tensor, padd_mm: Tensor, mm_queries: Tensor):
+    def forward(self,
+                mm_sits: torch.Tensor,
+                padd_mm: torch.Tensor,
+                mm_queries: torch.Tensor
+                ) -> torch.Tensor:
         """
 
         Args:

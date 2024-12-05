@@ -77,3 +77,9 @@ class OutMMAliseSharedStep:
     loss: GlobalInvRecMMLoss
     out_forward: OutMMAliseF
     despeckle_s1: DespeckleS1
+
+@dataclass
+class WeightClass:
+    w_rec: float
+    w_inv: float
+    w_crossrec: float

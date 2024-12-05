@@ -1,7 +1,9 @@
 import torch
 
 from mmmv_ssl.model.decodeur import MetaDecoder
-from mmmv_ssl.model.transformer import TransformerBlock, TransformerBlockConfig
+from mmmv_ssl.model.transformer import TransformerBlock
+from mmmv_ssl.model.datatypes import TransformerBlockConfig
+
 
 
 def test_forward():

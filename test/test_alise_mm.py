@@ -10,7 +10,8 @@ from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.encoding import PositionalEncoder
 from mmmv_ssl.model.temp_proj import TemporalProjector
-from mmmv_ssl.model.transformer import TransformerBlock, TransformerBlockConfig
+from mmmv_ssl.model.transformer import TransformerBlock
+from mmmv_ssl.model.datatypes import TransformerBlockConfig
 from mmmv_ssl.module.alise_mm import AliseMM
 from mmmv_ssl.module.dataclass import OutMMAliseF
 

@@ -1,25 +1,36 @@
+# pylint: disable=invalid-name
+
+"""
+Temporal projector
+"""
+
 import logging
 
 import numpy as np
 import torch
-import torch.nn as nn
+from torch import nn
 from einops import rearrange, repeat
-from torch import Tensor
-
 from mmmv_ssl.model.dataclass import OutTempProjForward
 
 my_logger = logging.getLogger(__name__)
 
 
 class CrossAttn(nn.Module):
-    def __init__(self, n_head, d_k, d_in):
+    """
+    Cross attention from Temporal Projector
+    """
+    def __init__(self, n_head: int, d_k: int, d_in: int):
         super().__init__()
         self.n_head = n_head
         self.d_k = d_k
         self.d_in = d_in
         self.fc1_k = nn.Linear(d_in, n_head * d_k, bias=False)
 
-    def forward(self, v, q, pad_mask=None) -> Tensor:
+    def forward(self,
+                v: torch.Tensor,
+                q: torch.Tensor,
+                pad_mask: torch.Tensor | None = None
+                ) -> torch.Tensor:
         """
 
         :param v: b,t,c
@@ -61,6 +72,9 @@ class CrossAttn(nn.Module):
 
 
 class TemporalProjector(nn.Module):
+    """
+    Temporal projector class. Module from Malice encoder.
+    """
     def __init__(self, num_heads: int, input_channels: int, n_q: int):
         super().__init__()
         self.Q = nn.Parameter(
@@ -75,14 +89,13 @@ class TemporalProjector(nn.Module):
         )
 
     def forward(
-        self,
-        sits_s1: Tensor,
-        padd_s1: Tensor | None,
-        sits_s2: Tensor,
-        padd_s2: Tensor | None,
-    ):
+            self,
+            sits_s1: torch.Tensor,
+            padd_s1: torch.Tensor | None,
+            sits_s2: torch.Tensor,
+            padd_s2: torch.Tensor | None,
+    ) -> OutTempProjForward:
         """
-
         :param sits_s1: b,t1,c
         :type sits_s1:
         :param padd_s1: b,t1 means value in attention False when padded

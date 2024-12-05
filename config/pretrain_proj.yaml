@@ -1,6 +1,6 @@
 defaults:
   - _self_
-  - datamodule: mask_mm.yaml
+  - datamodule: mask_mm_jz.yaml
   - module : alise_mm_proj.yaml
   - train: pretrain_ssl.yaml
   - callbacks: minimal.yaml
@@ -10,7 +10,9 @@ defaults:
 original_work_dir: ${hydra:runtime.cwd}
 name: "malice_pretrain"
 
-output_dir: /work/scratch/data/${oc.env:USER}/MMDC/results/malice
+#output_dir: /work/scratch/data/${oc.env:USER}/MMDC/results/malice
+output_dir: /${oc.env:WORK}/results/MMDC/results/malice
+
 
 run_id : ${now:%Y-%m-%d}_${now:%H-%M-%S}
 
@@ -18,7 +20,9 @@ hydra:
   run:
     dir: ${output_dir}/logs/${name}/${run_id}
 
-resume_from_checkpoint: /work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-29_17-13-45/last.ckpt #null
+data_dir: /work/CESBIO/projects/DeepChange/Iris/MMDC_OE/PT_FORMAT_MM3
+
+resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-29_17-13-45/last.ckpt #null
 hydra_config: null
 seed: 1
 verbose: 0

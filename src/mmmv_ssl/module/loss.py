@@ -11,7 +11,7 @@ from mmmv_ssl.utils.speckle_filter import despeckle_batch
 
 def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
     """Despeckle S1 image for rec loss computation"""
-    b, t, _, h, w = batch_sits.sits.shape
+    b, t, _, h, w = batch_sits.sits.shape     # pylint: disable=C0103
     despeckle_s1, margin = despeckle_batch(
         rearrange(batch_sits.sits, "b t c h w -> (b t ) c h w")
     )
@@ -48,7 +48,7 @@ class ReconstructionLoss(nn.Module):
         valid_mask = create_mask_loss(
             sits.padd_index, ~sits.mask
         )  # in .mask True means pixel valid
-        h, w = sits.h, sits.w
+        h, w = sits.h, sits.w   # pylint: disable=C0103
         if torch.sum(valid_mask) != 0:
             valid_mask = valid_mask[
                          ...,
@@ -135,7 +135,7 @@ class InvarianceLoss(nn.Module):
         self.inv_loss = inv_loss
         self.same_mod_loss = same_mod_loss
 
-    def compute_inv_loss(self, embeddings: LatRepr):
+    def compute_inv_loss(self, embeddings: LatRepr) -> torch.Tensor:
         """
         Compute invariance loss.
         It is not computed between 2 views of the same sensor,
@@ -167,7 +167,7 @@ class GlobalLoss(nn.Module):
         self.w_cross_rec = w_cross_rec
 
     @staticmethod
-    def define_global_loss(tot_rec_loss, inv_loss):
+    def define_global_loss(tot_rec_loss: TotalRecLoss, inv_loss: torch.Tensor) -> None | torch.Tensor:
         """
         Define global loss.
         """
@@ -209,7 +209,7 @@ class GlobalLoss(nn.Module):
         return (1 -
                 self.w_cross_rec) * one_rec_loss.monom_rec + self.w_cross_rec * one_rec_loss.crossm_rec
 
-    def all_losses_dict(self, global_loss: GlobalInvRecMMLoss):
+    def all_losses_dict(self, global_loss: GlobalInvRecMMLoss) -> dict[str, torch.Tensor]:
         """
         Transforms all losses to dict for further logging.
         """

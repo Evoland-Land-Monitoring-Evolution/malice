@@ -13,7 +13,10 @@ my_logger = logging.getLogger(__name__)
 
 
 class TemplateModule(pl.LightningModule):
-    def __init__(self, model, batch_size, lr):
+    def __init__(self, model: AliseMMModule, lr: float = 0.001):
+        """
+        Base model
+        """
         super().__init__()
 
         self.df_metrics = None
@@ -21,7 +24,7 @@ class TemplateModule(pl.LightningModule):
         self.stats = None
 
         self.lr = lr
-        self.bs = batch_size
+        self.bs = None
         self.metric_name = []
 
         if isinstance(model, DictConfig):
@@ -38,6 +41,9 @@ class TemplateModule(pl.LightningModule):
         self.border = 0
 
     def configure_optimizers(self):
+        """
+        Training optimizer.
+        """
         # optimizer = instantiate(
         #     self.optimizer, params=self.parameters(), lr=self.learning_rate
         # )
@@ -62,12 +68,17 @@ class TemplateModule(pl.LightningModule):
         }
 
     def on_test_epoch_start(self):
+        """On test start"""
         self.df_metrics = pd.DataFrame(
             columns=self.metric_name + ["test_loss"]
         )
 
     def on_fit_start(self) -> None:
-        """On fit start, get the stats, and set them into the model"""
+        """
+        On fit start, get the stats, and set them into the model.
+        Also get batch_size for the logger
+        """
         self.stats = (self.trainer.datamodule.all_transform.s2.stats,
                       self.trainer.datamodule.all_transform.s1_asc.stats
                       )
+        self.bs = self.trainer.datamodule.batch_size

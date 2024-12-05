@@ -1,17 +1,11 @@
-from dataclasses import dataclass
+"""
+Transformer block for deep decoding in Malice.
+Currently not used in the default model configuration
+"""
+import torch
+from torch import nn
 
-import torch.nn as nn
-from torch import Tensor
-
-
-@dataclass
-class TransformerBlockConfig:
-    n_layers: int
-    d_model: int
-    d_in: int
-    dropout = 0.1
-    norm_first: bool = False
-    n_head: int = 1
+from mmmv_ssl.model.datatypes import TransformerBlockConfig
 
 
 class TransformerBlock(nn.Module):
@@ -41,18 +35,18 @@ class TransformerBlock(nn.Module):
         self.dropout = nn.Dropout(p=config.dropout)
 
     def forward(
-        self,
-        data: Tensor,
-        key_padding_mask: None | Tensor = None,
-        src_mask: None | Tensor = None,
-    ) -> Tensor:
+            self,
+            data: torch.Tensor,
+            key_padding_mask: None | torch.Tensor = None,
+            src_mask: None | torch.Tensor = None,
+    ) -> torch.Tensor:
         """
         input: b,n,c
         key_padding_mask: b,n or n : true means ignored
         src_mask: b*nhead,n,n
         """
 
-        enc_output: Tensor = self.dropout(data)
+        enc_output: torch.Tensor = self.dropout(data)
         for enc_layer in self.layer_stack:
             enc_output = enc_layer(
                 enc_output,

@@ -1,10 +1,9 @@
 import logging
 
 import torch.nn as nn
-from mt_ssl.data.mt_batch import BInput5d, BOutputReprEnco
-
 from mmmv_ssl.model.clean_ubarn import CleanUBarn
 from mmmv_ssl.model.datatypes import CleanUBarnConfig
+from mt_ssl.data.mt_batch import BInput5d, BOutputReprEnco
 
 my_logger = logging.getLogger(__name__)
 

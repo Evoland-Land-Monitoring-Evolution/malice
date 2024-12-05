@@ -1,15 +1,19 @@
 import torch
-import torch.nn as nn
 from einops import repeat
-from hydra.utils import instantiate
-from mt_ssl.model.encoding import PEConfig
-from omegaconf import DictConfig
-
 from mmmv_ssl.model.encoding import PositionalEncoder
+from torch import nn
+
+
+# from mt_ssl.model.encoding import PEConfig
 
 
 class TempMetaQuery(nn.Module):
-    def __init__(self, pe_config, input_channels):
+    """
+    Temporal Meta Query class for learnable queries in
+    Malice decoder
+    """
+
+    def __init__(self, pe_config: None, input_channels: int):
         super().__init__()
         # if isinstance(pe_config, DictConfig | PEConfig):
         #     self.pe_encoding: PositionalEncoder = instantiate(
@@ -24,17 +28,9 @@ class TempMetaQuery(nn.Module):
             d=input_channels
         )
 
-
-
-    def forward(self, q, doy):
+    def forward(self, q: torch.Tensor, doy: torch.Tensor) -> torch.Tensor:
         """
-
-        Args:
-            q (): d
-            doy (): b,t
-
-        Returns:
-
+        Forward pass
         """
         pe = self.pe_encoding(doy)  # b t,c
         query = repeat(q, " c -> b t c", b=pe.shape[0], t=pe.shape[1])

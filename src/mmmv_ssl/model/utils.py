@@ -1,3 +1,7 @@
+"""
+Util to build encoder from Malice Lightning module
+"""
+
 from typing import Literal
 
 from mmmv_ssl.model.sits_encoder import MonoSITSEncoder
@@ -5,8 +9,11 @@ from mmmv_ssl.module.alise_mm import AliseMM
 
 
 def build_encoder(
-    pretrained_module: AliseMM, mod: Literal["s1", "s2"] = "s2"
+        pretrained_module: AliseMM, mod: Literal["s1", "s2"] = "s2"
 ) -> MonoSITSEncoder:
+    """
+    Builds one modality encoder from Malice lightning module.
+    """
     if mod == "s1":
         ubarn = pretrained_module.model.encoder.encoder_s1.ubarn
         temp_proj = pretrained_module.model.encoder.common_temp_proj.ca_s1
