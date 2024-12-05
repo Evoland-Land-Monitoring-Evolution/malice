@@ -10,7 +10,7 @@ my_logger=logging.getLogger(__name__)
 class SITSOneMod:
     sits: Tensor
     input_doy: Tensor
-    true_doy: Tensor
+    true_doy: Tensor | None = None
     padd_mask: Tensor | None = None
     mask: Tensor | None = None
 
