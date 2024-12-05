@@ -18,6 +18,8 @@ hydra:
   run:
     dir: ${output_dir}/logs/${name}/${run_id}
 
+data_dir: /work/CESBIO/projects/DeepChange/Iris/MMDC_OE/PT_FORMAT_MM3
+
 resume_from_checkpoint: null #/work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-11-29_17-13-45/last.ckpt #null
 hydra_config: null
 seed: 1

@@ -5,6 +5,6 @@ datamodule:
   batch_size: 2
   crop_size: 64
   s2_band: null
-  path_dir_csv: /work/CESBIO/projects/DeepChange/Iris/MMDC_OE/PT_FORMAT_MM3
+  path_dir_csv: ${data_dir}
   prefetch_factor: 2
 
