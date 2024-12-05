@@ -17,7 +17,7 @@ model:
           _target_: mmmv_ssl.model.datatypes.UnetConfig
           encoder_widths: [ 64,64,64,128 ]
           decoder_widths: [ 32,32,64,128 ]
-          encoder_norm: "group"
+          encoder_norm: "batch"
           padding_mode: "reflect"
           decoding_norm: "batch"
           return_maps: false
@@ -40,7 +40,7 @@ model:
           _target_: mmmv_ssl.model.datatypes.UnetConfig
           encoder_widths: [ 64,64,64,128 ]
           decoder_widths: [ 32,32,64,128 ]
-          encoder_norm: "group"
+          encoder_norm: "batch"
           padding_mode: "reflect"
           decoding_norm: "batch"
           return_maps: false
@@ -55,8 +55,8 @@ model:
       n_q: 10
     projector:
       _target_: mmmv_ssl.model.datatypes.AliseProjConfig
-      l_dim: [ 32 ]
-      out_channels: 32
+      l_dim: [ 64 ]
+      out_channels: 64
       freeze: true
   decoder:
     _target_: mmmv_ssl.model.datatypes.DecoderConfig
@@ -73,12 +73,11 @@ model:
     _target_: mmmv_ssl.model.datatypes.DataInputChannels
     s2: 10
     s1: 3
-  d_repr: 32
+  d_repr: 64
 
 weights:
   w_rec: 1
   w_inv: 1
   w_crossrec: 0.5
 
-batch_size: 2
 lr: 0.001

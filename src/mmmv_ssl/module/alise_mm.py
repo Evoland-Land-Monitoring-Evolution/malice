@@ -22,10 +22,9 @@ class AliseMM(TemplateModule):
             self,
             model: AliseMMModule,
             weights,
-            batch_size: int,
             lr: float,
     ):
-        super().__init__(model, batch_size, lr)
+        super().__init__(model, lr)
 
         self.inv_loss = InvarianceLoss(torch.nn.MSELoss())
         self.rec_loss = ReconstructionLoss(torch.nn.MSELoss())
@@ -34,8 +33,8 @@ class AliseMM(TemplateModule):
         if weights.w_inv == 0:
             self.model.encoder.projector_emb = IdentityProj()
 
-        for name, param in self.model.named_parameters():
-            print(name, param.requires_grad)
+        # for name, param in self.model.named_parameters():
+        #     print(name, param.requires_grad)
 
         print(self.model)
 

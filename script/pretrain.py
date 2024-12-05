@@ -78,12 +78,10 @@ def main(myconfig: DictConfig):
         my_logger.info("Training from checkpoint %s", ckpt_path)
     else:
         my_logger.info("Training from scratch")
-
     # Train the model
     datamodule: MMMaskDataModule = instantiate(
         myconfig.datamodule.datamodule,
         config_dataset=myconfig.dataset,
-        batch_size=myconfig.module.batch_size,
         _recursive_=False,
     )
     pl_module: AliseMM = instantiate(

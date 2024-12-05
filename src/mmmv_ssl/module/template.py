@@ -13,7 +13,7 @@ my_logger = logging.getLogger(__name__)
 
 
 class TemplateModule(pl.LightningModule):
-    def __init__(self, model, batch_size, lr):
+    def __init__(self, model, lr):
         super().__init__()
 
         self.df_metrics = None
@@ -21,7 +21,7 @@ class TemplateModule(pl.LightningModule):
         self.stats = None
 
         self.lr = lr
-        self.bs = batch_size
+        self.bs = None
         self.metric_name = []
 
         if isinstance(model, DictConfig):
@@ -71,3 +71,4 @@ class TemplateModule(pl.LightningModule):
         self.stats = (self.trainer.datamodule.all_transform.s2.stats,
                       self.trainer.datamodule.all_transform.s1_asc.stats
                       )
+        self.bs = self.trainer.datamodule.batch_size
