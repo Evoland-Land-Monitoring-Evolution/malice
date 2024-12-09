@@ -78,6 +78,8 @@ model:
 weights:
   w_rec: 1
   w_inv: 1
-  w_crossrec: 0.5
+  w_crossrec: 0
 
 lr: 0.001
+
+same_mod_loss: true

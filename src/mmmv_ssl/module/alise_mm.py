@@ -23,10 +23,11 @@ class AliseMM(TemplateModule):
             model: AliseMMModule,
             weights,
             lr: float,
+            same_mod_loss: bool = False
     ):
         super().__init__(model, lr)
 
-        self.inv_loss = InvarianceLoss(torch.nn.MSELoss())
+        self.inv_loss = InvarianceLoss(torch.nn.MSELoss(), same_mod_loss=same_mod_loss)
         self.rec_loss = ReconstructionLoss(torch.nn.MSELoss())
         self.global_loss = GlobalLoss(weights.w_inv, weights.w_rec, weights.w_crossrec)
 
