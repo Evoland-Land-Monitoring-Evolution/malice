@@ -76,6 +76,7 @@ model:
   d_repr: 64
 
 weights:
+  _target_: mmmv_ssl.module.dataclass.WeightClass
   w_rec: 1
   w_inv: 1
   w_crossrec: 0

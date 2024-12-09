@@ -1,10 +1,18 @@
+# pylint: disable=invalid-name
+
+"""
+Malice torch module with general Malice class
+end encoder and decoder classes
+"""
+
 import logging
 
 import numpy as np
 import torch
 from einops import rearrange, repeat
-from mt_ssl.data.mt_batch import BOutputReprEnco
 from torch import nn
+
+from mt_ssl.data.mt_batch import BOutputReprEnco
 
 from mmmv_ssl.data.dataclass import merge2views, BatchMMSits, BatchOneMod
 from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
@@ -20,6 +28,10 @@ my_logger = logging.getLogger(__name__)
 
 
 class AliseMMModule(nn.Module):
+    """
+    Malice Module composed of encoder and decoder
+    """
+
     def __init__(self,
                  encoder: EncoderConfig,
                  decoder: DecoderConfig,
@@ -35,23 +47,25 @@ class AliseMMModule(nn.Module):
                                      input_channels=input_channels,
                                      d_repr=d_repr)
 
-    def forward(self, batch):
-        repr, out_emb, mm_embedding = self.encoder(batch)
+    def forward(self, batch: BatchMMSits) -> OutMMAliseF:
+        """Forward pass"""
+        reprojected, out_emb, mm_embedding = self.encoder(batch)
         reconstructions = self.decoder(batch, mm_embedding)
-        return OutMMAliseF(repr=repr, rec=reconstructions, emb=out_emb)
+        return OutMMAliseF(repr=reprojected, rec=reconstructions, emb=out_emb)
 
 
 class MaliceEncoder(nn.Module):
+    """
+    Encoder module.
+    Contains two Ubarn encoders for S1 and S2, common temporal projector
+    and embedding projector (for invariance loss)
+    """
+
     def __init__(self,
                  encoder: EncoderConfig,
                  input_channels: DataInputChannels = DataInputChannels(),
                  d_repr: int = 64,
                  ):
-        """
-        Encoder module.
-        Contains two Ubarn encoders for S1 and S2, common temporal projector
-        and embedding projector (for invariance loss)
-        """
         super().__init__()
 
         self.encoder_s1 = CleanUBarnReprEncoder(ubarn_config=encoder.encoder_s1,
@@ -77,7 +91,11 @@ class MaliceEncoder(nn.Module):
                                            l_dim=encoder.projector.l_dim,
                                            freeze=encoder.projector.freeze)
 
-    def compute_mm_embeddings(self, aligned_repr: OutTempProjForward, h: int, w: int):
+    def compute_mm_embeddings(self,
+                              aligned_repr: OutTempProjForward,
+                              h: int,
+                              w: int
+                              ) -> tuple[LatRepr, LatRepr, torch.Tensor]:
         """
         Compute multimodal embeddings for Invariance loss
         """
@@ -110,19 +128,23 @@ class MaliceEncoder(nn.Module):
             dim=0,
         )  # should be s2a,s2a,s2b,s2b,s1a,s1a,s1b,s1b
 
-        rearrange_embeddings = lambda x: rearrange(
-            x, "(b h w) t c-> b t c h w", h=h, w=w
-        )
+        # rearrange_embeddings = lambda x: rearrange(
+        #     x, "(b h w) t c-> b t c h w", h=h, w=w
+        # )
 
-        repr = LatRepr(*
-                       [rearrange_embeddings(emb) for emb in
-                        [
-                            embedding_s1[0, ...],
-                            embedding_s1[1, ...],
-                            embedding_s2[0, ...],
-                            embedding_s2[1, ...],
-                        ]
-                        ])
+        def rearrange_embeddings(x: torch.Tensor) -> torch.Tensor:
+            return rearrange(
+                x, "(b h w) t c-> b t c h w", h=h, w=w)
+
+        reprojected = LatRepr(*
+                              [rearrange_embeddings(emb) for emb in
+                               [
+                                   embedding_s1[0, ...],
+                                   embedding_s1[1, ...],
+                                   embedding_s2[0, ...],
+                                   embedding_s2[1, ...],
+                               ]
+                               ])
         out_emb = LatRepr(
             s2a=embeddings[0, ...],
             s2b=embeddings[1, ...],
@@ -130,7 +152,7 @@ class MaliceEncoder(nn.Module):
             s1b=embeddings[3, ...],
         )
 
-        return repr, out_emb, mm_embedding
+        return reprojected, out_emb, mm_embedding
 
     def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
         """Get two view of one satellite and encode them with encoder"""
@@ -155,7 +177,7 @@ class MaliceEncoder(nn.Module):
             padd = rearrange(mask_tp, "b t h w -> (b h w) t ")
         return out, padd
 
-    def forward(self, batch: BatchMMSits):
+    def forward(self, batch: BatchMMSits) -> tuple[LatRepr, LatRepr, torch.Tensor]:
         """
         Malice Encoder forward step.
         """
@@ -169,12 +191,19 @@ class MaliceEncoder(nn.Module):
             padd_s2=padd_s2,
         )
 
-        repr, out_emb, mm_embedding = self.compute_mm_embeddings(aligned_repr, batch.sits1a.h, batch.sits1a.w)
+        reprojected, out_emb, mm_embedding = self.compute_mm_embeddings(
+            aligned_repr, batch.sits1a.h, batch.sits1a.w
+        )
 
-        return repr, out_emb, mm_embedding
+        return reprojected, out_emb, mm_embedding
 
 
 class MaliceDecoder(nn.Module):
+    """
+    Malice decoder. Consists of common meta-decoder with learnable queries
+    modality projectors.
+    """
+
     def __init__(self, decoder: DecoderConfig,
                  input_channels: DataInputChannels = DataInputChannels(),
                  d_repr: int = 64,
@@ -193,8 +222,8 @@ class MaliceDecoder(nn.Module):
             pe_config=None, input_channels=decoder.pe_channels
         )
 
-        self.q_decod_s1 = self.define_query_decoder(decoder.query_s1s2_d)
-        self.q_decod_s2 = self.define_query_decoder(decoder.query_s1s2_d)
+        self.q_decod_s1 = self.initialize_learnable_query(decoder.query_s1s2_d)
+        self.q_decod_s2 = self.initialize_learnable_query(decoder.query_s1s2_d)
 
         self.proj_s1 = torch.nn.Linear(
             self.meta_decoder.input_channels, input_channels.s1
@@ -204,10 +233,14 @@ class MaliceDecoder(nn.Module):
             self.meta_decoder.input_channels, input_channels.s2
         )
 
-    def compute_query(self, batch_sits: BatchOneMod, sat: str = "s2"):
+    def compute_query(self,
+                      batch_sits: BatchOneMod,
+                      sat: str = "s2"
+                      ) -> torch.Tensor:
         """Compute query and reshape it"""
         query = repeat(
-            self.query_builder(self.q_decod_s2 if "2" in sat else self.q_decod_s1, batch_sits.input_doy),
+            self.query_builder(self.q_decod_s2 if "2" in sat
+                               else self.q_decod_s1, batch_sits.input_doy),
             "b t c -> b t c h w",
             h=batch_sits.h,
             w=batch_sits.w,
@@ -219,7 +252,8 @@ class MaliceDecoder(nn.Module):
         )
 
     @staticmethod
-    def define_query_decoder(query: int) -> nn.Parameter:
+    def initialize_learnable_query(query: int) -> nn.Parameter:
+        """Initialize query"""
         q_decod = nn.Parameter(
             torch.zeros(query)
         ).requires_grad_(True)
@@ -229,7 +263,9 @@ class MaliceDecoder(nn.Module):
         return q_decod
 
     def forward(self, batch: BatchMMSits, mm_embedding: torch.Tensor) -> Rec:
-        # Decoder!
+        """
+        Decoder forward
+        """
 
         query_s2a = self.compute_query(batch_sits=batch.sits2a, sat="s2")
         query_s2b = self.compute_query(batch_sits=batch.sits2b, sat="s2")

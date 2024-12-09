@@ -1,24 +1,26 @@
+# pylint: skip-file
+# Maybe file needs to be deleted
+
 import copy
 
 import numpy as np
 import torch
 import torch.nn as nn
-
 from mmmv_ssl.model.encoding import PositionalEncoder
 
 
 class LTAE2d(nn.Module):
     def __init__(
-        self,
-        in_channels=128,
-        n_head=16,
-        d_k=4,
-        mlp=None,
-        dropout=0.2,
-        d_model=256,
-        T=1000,
-        return_att=False,
-        positional_encoding=True,
+            self,
+            in_channels=128,
+            n_head=16,
+            d_k=4,
+            mlp=None,
+            dropout=0.2,
+            d_model=256,
+            T=1000,
+            return_att=False,
+            positional_encoding=True,
     ):
         """
         Lightweight Temporal Attention Encoder (L-TAE) for image time series.
@@ -28,12 +30,15 @@ class LTAE2d(nn.Module):
             in_channels (int): Number of channels of the input embeddings.
             n_head (int): Number of attention heads.
             d_k (int): Dimension of the key and query vectors.
-            mlp (List[int]): Widths of the layers of the MLP that processes the concatenated outputs of the attention heads.
+            mlp (List[int]): Widths of the layers of the MLP that processes
+                            the concatenated outputs of the attention heads.
             dropout (float): dropout
-            d_model (int, optional): If specified, the input tensors will first processed by a fully connected layer
+            d_model (int, optional): If specified, the input tensors will first
+                processed by a fully connected layer
                 to project them into a feature space of dimension d_model.
             T (int): Period to use for the positional encoding.
-            return_att (bool): If true, the module returns the attention masks along with the embeddings (default False)
+            return_att (bool): If true, the module returns the attention masks
+                                along with the embeddings (default False)
             positional_encoding (bool): If False, no positional encoding is used (default True).
         """
         super().__init__()
@@ -85,8 +90,8 @@ class LTAE2d(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(
-        self, x, batch_positions=None, pad_mask=None, return_comp=False
-    ):
+            self, x: torch.Tensor, batch_positions: torch.Tensor|None=None, pad_mask: torch.Tensor|None=None, return_comp: bool=False
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         sz_b, seq_len, d, h, w = x.shape
         if pad_mask is not None:
             pad_mask = (
@@ -147,7 +152,7 @@ class MultiHeadAttention(nn.Module):
     Modified from github.com/jadore801120/attention-is-all-you-need-pytorch
     """
 
-    def __init__(self, n_head, d_k, d_in):
+    def __init__(self, n_head: int, d_k: int, d_in: int):
         super().__init__()
         self.n_head = n_head
         self.d_k = d_k
@@ -163,7 +168,7 @@ class MultiHeadAttention(nn.Module):
             temperature=np.power(d_k, 0.5)
         )
 
-    def forward(self, v, pad_mask=None, return_comp=False):
+    def forward(self, v: torch.Tensor, pad_mask: torch.Tensor | None =None, return_comp: bool=False) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor]:
         d_k, d_in, n_head = self.d_k, self.d_in, self.n_head
         sz_b, seq_len, _ = v.size()
 
@@ -184,6 +189,7 @@ class MultiHeadAttention(nn.Module):
         v = torch.stack(v.split(v.shape[-1] // n_head, dim=-1)).view(
             n_head * sz_b, seq_len, -1
         )
+        comp = None
         if return_comp:
             output, attn, comp = self.attention(
                 q, k, v, pad_mask=pad_mask, return_comp=return_comp
@@ -215,11 +221,12 @@ class ScaledDotProductAttention(nn.Module):
         self.dropout = nn.Dropout(attn_dropout)
         self.softmax = nn.Softmax(dim=2)
 
-    def forward(self, q, k, v, pad_mask=None, return_comp=False):
+    def forward(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, pad_mask: torch.Tensor|None=None, return_comp: bool=False) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor] | tuple[torch.Tensor, torch.Tensor]:
         attn = torch.matmul(q.unsqueeze(1), k.transpose(1, 2))
         attn = attn / self.temperature
         if pad_mask is not None:
             attn = attn.masked_fill(pad_mask.unsqueeze(1), -1e3)
+        comp = None
         if return_comp:
             comp = attn
         # compat = attn

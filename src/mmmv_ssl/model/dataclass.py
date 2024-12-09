@@ -1,16 +1,19 @@
+""" Output dataclasses """
+
 from dataclasses import dataclass
 
-from torch import Tensor
-
+import torch
 
 @dataclass
 class OutUTAEForward:
-    seg_map: Tensor
-    attn: Tensor | None = None
-    feature_maps: list[Tensor] | None = None
+    """ UTAE outputs """
+    seg_map: torch.Tensor
+    attn: torch.Tensor | None = None
+    feature_maps: list[torch.Tensor] | None = None
 
 
 @dataclass
 class OutTempProjForward:
-    s1: Tensor
-    s2: Tensor
+    """ Temporal projector outputs """
+    s1: torch.Tensor    # pylint: disable=C0103
+    s2: torch.Tensor    # pylint: disable=C0103

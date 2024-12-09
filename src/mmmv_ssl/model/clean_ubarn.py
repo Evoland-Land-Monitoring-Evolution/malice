@@ -1,21 +1,22 @@
+# pylint: disable=invalid-name
+
+"""
+Classes relevant to Ubarn module that performs S2 or S1 encoding.
+Part of Malice Encoder
+"""
+
 import logging
-from dataclasses import dataclass
 from typing import Literal
 
 import torch
+from torch import nn
 from einops import rearrange, repeat
-from mt_ssl.constant.dataset import ENCODE_PERMUTATED
-from mt_ssl.data.bert_batch import InputBERTBatch
-from mt_ssl.data.mask import permutate_flagged_patches
+
 from mt_ssl.data.mt_batch import BInput5d, BOutputUBarn
 from mt_ssl.model.attention import MultiHeadAttention
 from mt_ssl.model.convolutionalblock import ConvBlock
 from mt_ssl.model.norm import AdaptedLayerNorm
 from mt_ssl.model.utae_unet import Unet
-from omegaconf import DictConfig
-from torch import Tensor, nn
-from torch.nn import TransformerEncoder, TransformerEncoderLayer
-
 from mmmv_ssl.model.datatypes import UnetConfig
 from mmmv_ssl.model.encoding import PositionalEncoder
 
@@ -53,16 +54,15 @@ class EncoderTransformerLayer2(nn.Module):
 
     def forward(
             self,
-            input,
-            src_mask=None,
-            key_padding_mask=None,
-            is_causal=False,
-            src_key_padding_mask=None,
-    ):
+            batch: torch.Tensor,
+            src_mask: torch.Tensor | None = None,
+            key_padding_mask: torch.Tensor | None = None,
+            src_key_padding_mask: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch]:
         """
 
         Args:
-            input ():
+            batch ():
             src_mask ():
             key_padding_mask (): True indicates which elements within ``key``
             to ignore for the purpose of attention
@@ -71,22 +71,19 @@ class EncoderTransformerLayer2(nn.Module):
 
         """
 
-        b, n, c, h, w = input.shape
-        # input is (b,n,c,h,w)
-
         if self.norm_first:
-            x = input
+            x = batch
             output, enc_slf_attn = self._sa_block(
-                self.norm(input),
+                self.norm(batch),
                 mask=src_mask,
                 key_padding_mask=key_padding_mask,
             )
             x = x + output
             x = x + self._conv_block(self.norm2(x))
         else:
-            x = input
+            x = batch
             output, enc_slf_attn = self._sa_block(
-                self.norm(input),
+                self.norm(batch),
                 mask=src_mask,
                 key_padding_mask=key_padding_mask,
             )
@@ -95,13 +92,17 @@ class EncoderTransformerLayer2(nn.Module):
 
         return x, enc_slf_attn
 
-    def _sa_block(self, x, mask, key_padding_mask):
+    def _sa_block(self,
+                  x: torch.Tensor,
+                  mask: torch.Tensor,
+                  key_padding_mask: torch.Tensor
+                  ) -> tuple[torch.Tensor, torch.Tensor]:
         x, p_attn = self.attn(
             x, x, x, mask=mask, key_padding_mask=key_padding_mask
         )
         return self.dropout(x), p_attn
 
-    def _conv_block(self, x):
+    def _conv_block(self, x: torch.Tensor) -> torch.Tensor:
         return self.conv_block(x)
 
 
@@ -114,7 +115,7 @@ class Encoder2(nn.Module):
             n_layers: int,
             d_model: int,
             d_in: int,
-            dropout=0.1,
+            dropout: float = 0.1,
             block_name: Literal["se", "pff", "basicconv"] = "se",
             norm_first: bool = False,
             nhead: int = 1,
@@ -141,18 +142,20 @@ class Encoder2(nn.Module):
 
     def forward(
             self,
-            input: torch.Tensor,
+            batch: torch.Tensor,
             return_attns: bool = False,
             src_key_padding_mask: None | torch.Tensor = None,
             src_mask: None | torch.Tensor = None,
     ) -> tuple[torch.Tensor, list[torch.Tensor] | None]:
-        my_logger.debug(f"input enc   {input.shape}")
+        """Forward pass"""
+        my_logger.debug(f"input enc {batch.shape}")
         enc_slf_attn_list = []
-        # enc_output = input
-        enc_output = self.dropout(input)
-        # some values are not there (b,n enc_output=self.layer_norm(ind_modelput) #not sure layer norm is adapted to our
+        # enc_output = batch
+        enc_output = self.dropout(batch)
+        # some values are not there (b,n enc_output=self.layer_norm(ind_modelput)
+        # #not sure layer norm is adapted to our
         # issue ...
-        for i, enc_layer in enumerate(self.layer_stack):
+        for enc_layer in self.layer_stack:
             enc_output, enc_slf_attn = enc_layer(
                 enc_output,
                 key_padding_mask=src_key_padding_mask,
@@ -166,36 +169,28 @@ class Encoder2(nn.Module):
 
 
 class CleanUBarn(nn.Module):
+    """
+    Clean UBarn module for S1/S2 encoders
+    """
+
     def __init__(
-        self,
-        ne_layers: int,
-        d_model: int = 256,
-        d_hidden: int = 512,
-        dropout: float = 0.1,
-        block_name: Literal["se", "basicconv", "pff", "last"] = "pff",
-        norm_first: bool = False,
-        input_channels: int = 10,
-        nhead: int = 4,
-        attn_dropout: float = 0.1,
-        encoding_config: UnetConfig = UnetConfig(),
-        # max_len_pe: int = 3000,
-        pe_cst: int = 10000,
-        use_transformer: bool = True,
-        use_pytorch_transformer:bool =True,
+            self,
+            ne_layers: int,
+            d_model: int = 256,
+            d_hidden: int = 512,
+            dropout: float = 0.1,
+            block_name: Literal["se", "basicconv", "pff", "last"] = "pff",
+            norm_first: bool = False,
+            input_channels: int = 10,
+            nhead: int = 4,
+            attn_dropout: float = 0.1,
+            encoding_config: UnetConfig = UnetConfig(),
+            # max_len_pe: int = 3000,
+            pe_cst: int = 10000,
+            use_transformer: bool = True,
+            use_pytorch_transformer: bool = True,
     ):
         super().__init__()
-        # self.ne_layers = ne_layers
-        # self.d_model = d_model
-        # self.d_hidden = d_hidden
-        # self.dropout = dropout
-        # self.block_name = block_name
-        # self.norm_first = norm_first
-        # self.input_channels = input_channels
-        # self.nhead = nhead
-        # self.attn_dropout = attn_dropout
-        # self.encoding_config = encoding_config
-        # self.max_len_pe = max_len_pe
-        # self.pe_cst = pe_cst
 
         self.d_model = d_model
         self.input_channels = input_channels
@@ -209,7 +204,7 @@ class CleanUBarn(nn.Module):
 
         if use_transformer:
             if use_pytorch_transformer:
-                encoder_layer = TransformerEncoderLayer(
+                encoder_layer = nn.TransformerEncoderLayer(
                     d_model=d_model,
                     nhead=nhead,
                     dim_feedforward=d_hidden,
@@ -217,7 +212,7 @@ class CleanUBarn(nn.Module):
                     norm_first=norm_first,
                     batch_first=True,
                 )
-                self.temporal_encoder = TransformerEncoder(
+                self.temporal_encoder = nn.TransformerEncoder(
                     encoder_layer=encoder_layer, num_layers=ne_layers
                 )
             else:
@@ -235,36 +230,24 @@ class CleanUBarn(nn.Module):
             self.temporal_encoder = None
 
     def forward(
-        self,
-        batch_input: BInput5d | InputBERTBatch,
-        return_attns: bool,
-        apply_corruption: bool = False,
+            self,
+            batch_input: BInput5d,
+            return_attns: bool,
     ) -> BOutputUBarn:
         """
-
-        Args:
-            batch_input ():
-            return_attns ():
-
-        Returns:
-
+        Forward pass
         """
         x, doy_encoding = self.patch_encoding(
-            batch_input.sits, batch_input.input_doy, batch_input.true_doy, mask=batch_input.padd_index
+            batch_input.sits, batch_input.input_doy,
+            batch_input.true_doy, mask=batch_input.padd_index
         )
-        if apply_corruption and isinstance(batch_input, InputBERTBatch):
-            x = self.masking(
-                x,
-                mask_encoding=batch_input.corruption_mask,
-                pad_index=batch_input.padd_index,
-            )
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
             x = x + doy_encoding
             # print(batch_input.padd_index.shape)
             # print(x.shape)
-            b, t, c, h, w = x.shape
-            if isinstance(self.temporal_encoder, TransformerEncoder):
+            b, _, _, h, w = x.shape
+            if isinstance(self.temporal_encoder, nn.TransformerEncoder):
                 padd_index = repeat(
                     batch_input.padd_index, "b t -> b t h w ", h=h, w=w
                 )
@@ -279,67 +262,20 @@ class CleanUBarn(nn.Module):
             )
             my_logger.debug(f"padd_index {padd_index[0, :]}")
             my_logger.debug(f"output ubarn clean {x.shape}")
-            if isinstance(self.temporal_encoder, TransformerEncoder):
+            if isinstance(self.temporal_encoder, nn.TransformerEncoder):
                 x = rearrange(x, "(b h w ) t c -> b t c h w ", b=b, h=h, w=w)
             my_logger.debug(f"output ubarn clean {x.shape}")
             return BOutputUBarn(x)
 
         return BOutputUBarn(x, None)
 
-    def masking(
-            self, myinput: Tensor, mask_encoding: Tensor, pad_index: Tensor
-    ):
-        """
-
-        Args:
-            myinput ():
-            mask_encoding ():
-            pad_index ():
-
-        Returns: apply the [MASK]ing strategy of the BERT: permutates the pixel value for the selected patch
-        """
-        x = myinput.clone()
-        padd_val_dim = torch.count_nonzero(pad_index, dim=1)
-        pad_val = torch.max(padd_val_dim)  # TODO is it really useful ??
-        if pad_val != 0:
-            nopad_x = x[:, :-pad_val, :, :, :]
-        else:
-            nopad_x = x
-        nopad_x_shape = torch.Tensor(list(nopad_x.shape)).to(
-            device=x.device, dtype=torch.int32
-        )
-        b, n, hdim, h, w = nopad_x_shape
-        mask_encoding = torch.repeat_interleave(
-            mask_encoding, repeats=hdim, dim=2
-        )  # b t c h w "
-
-        return permutate_flagged_patches(
-            x, (mask_encoding == ENCODE_PERMUTATED)
-        )
-
-
-@dataclass
-class ConfigUbarn:
-    _target_: str = "mt_ssl.model.ubarn.UBarn"
-    ne_layers: int = 3
-    d_model: int = 256
-    d_hidden: int = (512,)
-    dropout: float = (0.1,)
-    block_name: Literal["se", "basicconv", "pff", "last"] = ("pff",)
-    norm_first: bool = (False,)
-    input_channels: int = (10,)
-    nhead: int = (4,)
-    attn_dropout: float = (0.1,)
-    encoding_config: DictConfig | None = (None,)
-    pe_module: PositionalEncoder | None = None
-    max_len_pe: int = (3000,)
-    pe_cst: int = 10000
-    use_transformer: bool = True
-    args: list = None
-    kwargs: dict = None
-
 
 class InputEncoding(nn.Module):
+    """
+    Input encoding class:
+    spectro-spatial encoding + positional encoding
+    """
+
     def __init__(
             self,
             inplanes: int,
@@ -354,18 +290,21 @@ class InputEncoding(nn.Module):
         self.pe_encoding = PositionalEncoder(d=planes, T=pe_cst)  # TODO: do smth here
 
     def forward(
-            self, x: Tensor, doy_list: Tensor, true_doy_list: Tensor | None = None, mask: Tensor | None = None
-    ):
+            self, x: torch.Tensor, doy_list: torch.Tensor, mask: torch.Tensor | None = None
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass"""
         input_encodding = self.hss_encoding(x, mask)
         doy_encoding = self.pe_encoding(doy_list)
         doy_encoding = rearrange(doy_encoding, " b n c-> b n c 1 1")
         return input_encodding, doy_encoding.to(input_encodding)
 
 
-class HSSEncoding(nn.Module):  # Hyperspectral & spatial encoding
+class HSSEncoding(nn.Module):
+    """Hyperspectral & spatial encoding """
+
     def __init__(
             self,
-            input_channels,
+            input_channels: int,
             d_model: int = 32,
             model_config: UnetConfig | None = None,
     ):
@@ -388,8 +327,9 @@ class HSSEncoding(nn.Module):  # Hyperspectral & spatial encoding
             border_size=model_config.border_size,
             skip_conv_norm=model_config.skip_conv_norm)
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None):
-        b, n, c, h, w = x.shape
+    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+        """Forward pass"""
+        b, n, _, h, w = x.shape
         x = rearrange(x, "b n c h w -> (b n ) c h w")
         if mask is not None:
             mask = rearrange(mask, "b n -> (b n )")
