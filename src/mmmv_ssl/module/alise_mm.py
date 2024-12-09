@@ -61,7 +61,7 @@ class AliseMM(TemplateModule):
             loss=global_loss, out_forward=out_model, despeckle_s1=despeckle_s1
         )
 
-    def training_step(self, batch: BatchMMSits, batch_idx: int) -> None | dict:
+    def training_step(self, batch: BatchMMSits, batch_idx: int) -> None | torch.Tensor:
         """Training step"""
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:

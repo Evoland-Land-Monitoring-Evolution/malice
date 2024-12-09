@@ -167,7 +167,7 @@ class GlobalLoss(nn.Module):
         self.w_cross_rec = w_cross_rec
 
     @staticmethod
-    def define_global_loss(tot_rec_loss: TotalRecLoss, inv_loss: torch.Tensor) -> None | torch.Tensor:
+    def define_global_loss(tot_rec_loss: TotalRecLoss, inv_loss: torch.Tensor) -> None | GlobalInvRecMMLoss:
         """
         Define global loss.
         """
