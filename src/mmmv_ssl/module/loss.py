@@ -11,7 +11,7 @@ from mmmv_ssl.utils.speckle_filter import despeckle_batch
 
 def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
     """Despeckle S1 image for rec loss computation"""
-    b, t, _, h, w = batch_sits.sits.shape     # pylint: disable=C0103
+    b, t, _, h, w = batch_sits.sits.shape  # pylint: disable=C0103
     despeckle_s1, margin = despeckle_batch(
         rearrange(batch_sits.sits, "b t c h w -> (b t ) c h w")
     )
@@ -30,10 +30,12 @@ class ReconstructionLoss(nn.Module):
 
     def __init__(
             self,
-            rec_loss: nn.Module = nn.MSELoss()
+            rec_loss: nn.Module = nn.MSELoss(),
+            margin: int = 0
     ):
         super().__init__()
         self.rec_loss = rec_loss
+        self.margin = margin
 
     def compute_one_rec_loss(self,
                              rec_sits: RecWithOrigin,
@@ -125,7 +127,8 @@ class InvarianceLoss(nn.Module):
     def __init__(
             self,
             inv_loss: nn.Module = nn.MSELoss(),
-            same_mod_loss: bool = False
+            same_mod_loss: bool = False,
+            margin: int = 0
     ):
         """
         Class for invariance loss (latent space loss).
@@ -134,6 +137,15 @@ class InvarianceLoss(nn.Module):
         super().__init__()
         self.inv_loss = inv_loss
         self.same_mod_loss = same_mod_loss
+        # self.margin = margin
+        if margin > 0:
+            self.margin_mask = torch.zeros(2, 64, 64)
+            self.margin_mask[:, margin: - margin, margin: - margin] = 1
+        else:
+            self.margin_mask = torch.ones(2, 64, 64)
+        self.margin_mask = rearrange(
+            self.margin_mask, "b h w -> (b h w)"
+        ).bool()
 
     def compute_inv_loss(self, embeddings: LatRepr) -> torch.Tensor:
         """
@@ -141,11 +153,24 @@ class InvarianceLoss(nn.Module):
         It is not computed between 2 views of the same sensor,
         but between 2 views of different sensors.
         """
-        creca = self.inv_loss(embeddings.s1a, embeddings.s2a)
-        crecb = self.inv_loss(embeddings.s1b, embeddings.s2b)
+
+        creca = self.inv_loss(
+            embeddings.s1a[self.margin_mask, :, :],
+            embeddings.s2a[self.margin_mask, :, :]
+        )
+        crecb = self.inv_loss(
+            embeddings.s1b[self.margin_mask, :, :],
+            embeddings.s2b[self.margin_mask, :, :]
+        )
         if self.same_mod_loss:
-            crec1 = self.inv_loss(embeddings.s1a, embeddings.s1b)
-            crec2 = self.inv_loss(embeddings.s2a, embeddings.s2b)
+            crec1 = self.inv_loss(
+                embeddings.s1a[self.margin_mask, :, :],
+                embeddings.s1b[self.margin_mask, :, :]
+            )
+            crec2 = self.inv_loss(
+                embeddings.s2a[self.margin_mask, :, :],
+                embeddings.s2b[self.margin_mask, :, :]
+            )
             return (crecb + creca + crec1 + crec2) / 4
         return (crecb + creca) / 2
 
