@@ -106,14 +106,7 @@ class MaliceEncoder(nn.Module):
         embedding_s2 = rearrange(
             aligned_repr.s2, "(view bhw) t c-> view bhw t c", view=2
         )
-        embeddings = rearrange(
-            torch.cat([embedding_s2, embedding_s1], dim=0),
-            "view bhw t c -> (view bhw) t c",
-        )
-        embeddings = self.projector_emb(embeddings)
-        embeddings = rearrange(
-            embeddings, "(view bhw) t c -> view bhw t c", view=4
-        )
+
         mm_embedding = torch.cat(
             [
                 embedding_s2[0, ...],
@@ -145,6 +138,16 @@ class MaliceEncoder(nn.Module):
                                    embedding_s2[1, ...],
                                ]
                                ])
+
+        embeddings = rearrange(
+            torch.cat([embedding_s2, embedding_s1], dim=0),
+            "view bhw t c -> (view bhw) t c",
+        )
+        embeddings = self.projector_emb(embeddings)
+        embeddings = rearrange(
+            embeddings, "(view bhw) t c -> view bhw t c", view=4
+        )
+
         out_emb = LatRepr(
             s2a=embeddings[0, ...],
             s2b=embeddings[1, ...],
