@@ -238,8 +238,7 @@ class CleanUBarn(nn.Module):
         Forward pass
         """
         x, doy_encoding = self.patch_encoding(
-            batch_input.sits, batch_input.input_doy,
-            batch_input.true_doy, mask=batch_input.padd_index
+            batch_input.sits, batch_input.input_doy, mask=batch_input.padd_index
         )
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
