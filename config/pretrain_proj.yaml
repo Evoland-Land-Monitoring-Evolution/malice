@@ -18,7 +18,9 @@ hydra:
   run:
     dir: ${output_dir}/logs/${name}/${run_id}
 
-data_dir: /work/CESBIO/projects/DeepChange/Iris/MMDC_OE/PT_FORMAT_MM3
+#data_dir: /work/CESBIO/projects/DeepChange/Iris/MMDC_OE/PT_FORMAT_MM3
+data_dir: /work/CESBIO/projects/DeepChange/Ekaterina
+
 
 resume_from_checkpoint: /work/scratch/data/kalinie/MMDC/results/malice/checkpoints/malice_pretrain/2024-12-09_11-15-33/last.ckpt #null
 hydra_config: null

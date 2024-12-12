@@ -20,6 +20,45 @@ class ConfigPretrainingMMYearDataset:
     dataset_type: Literal["train", "val", "test"] = "test"
 
 
+class PretrainingMMMaskDatasetAux(UnlabeledDataset):
+
+    def __len__(self):
+        return len(self.c_mmdc_df.s2)
+
+    def __getitem__(self, item) -> MMSITS:
+        """
+        Getitem for multitask pre-training
+        Args:
+            item ():
+
+        Returns:
+        interpolItem.sits_in.sits shae is f,t,c,h,w
+        """
+        out_item: ItemTensorMMDC = self.mmdc_sits(item, opt="aux")  # t,c,h,w
+        mask_s1 = out_item.s1_asc.mask.mask_nan
+        mask_s2 = out_item.s2.mask.merge_mask()
+
+        s2 = SITSOneMod(
+            sits=rearrange(out_item.s2.sits, "c t h w -> t c h w"),
+            input_doy=out_item.s2.doy,
+            true_doy=out_item.s2.true_doy,
+            mask=rearrange(mask_s2, "c t h w -> t c h w"),
+        )
+        s1 = SITSOneMod(
+            sits=rearrange(out_item.s1_asc.sits,
+                            "c t h w-> t c h w"),
+            input_doy=out_item.s1_asc.doy,
+            true_doy=out_item.s1_asc.true_doy,
+            mask=rearrange(mask_s1, "c t h w -> t c h w"),
+        )
+        s2a, s2b = split_one_mod(s2, max_len=self.max_len)
+        s1a, s1b = split_one_mod(s1, max_len=self.max_len)
+
+        final_item = MMSITS(sits1a=s1a, sits1b=s1b, sits2a=s2a, sits2b=s2b, dem=out_item.dem)
+        return final_item
+
+
+
 class PretrainingMMMaskDataset(UnlabeledDataset):
 
     def __len__(self):

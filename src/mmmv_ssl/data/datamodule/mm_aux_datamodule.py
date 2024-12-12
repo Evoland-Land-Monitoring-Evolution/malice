@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from mmmv_ssl.constant.dataset import S2_BAND
 from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels
 from mmmv_ssl.data.dataset.collate_fn import collate_fn_mm_dataset
-from mmmv_ssl.data.dataset.pretraining_mm_mask import PretrainingMMMaskDataset
+from mmmv_ssl.data.dataset.pretraining_mm_mask import PretrainingMMMaskDatasetAux
 from mmmv_ssl.data.dataset.pretraining_mm_year_dataset import (
     ConfigPretrainingMMYearDataset,
 )
@@ -22,7 +22,7 @@ from mmmv_ssl.data.dataset.pretraining_mm_year_dataset import (
 my_logger = logging.getLogger(__name__)
 
 
-class MMMaskDataModule(pl.LightningDataModule):
+class MMMaskDataModuleAux(pl.LightningDataModule):
 
     def __init__(
         self,
@@ -49,12 +49,12 @@ class MMMaskDataModule(pl.LightningDataModule):
         self.path_dir_csv = path_dir_csv
         self.prefetch_factor = prefetch_factor
         self.all_transform = load_all_transforms(self.path_dir_csv,
-                                                 modalities=["s1_asc", "s2"])
-        self.num_channels = MMChannels(s2_channels=len(s2_band), s1_channels=3)
+                                                 modalities=["s1_asc", "s2", "dem"])
+        self.num_channels = MMChannels(s2_channels=24, s1_channels=12, dem_channels=4)
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
-            self.data_train: PretrainingMMMaskDataset = instantiate(
+            self.data_train: PretrainingMMMaskDatasetAux = instantiate(
                 self.train_dataset,
                 max_len=self.max_len,
                 s2_band=self.s2_band,
@@ -62,7 +62,7 @@ class MMMaskDataModule(pl.LightningDataModule):
                 dataset_type="train",
                 transform=None,
             )
-            self.data_val: PretrainingMMMaskDataset = instantiate(
+            self.data_val: PretrainingMMMaskDatasetAux = instantiate(
                 self.val_dataset,
                 max_len=self.max_len,
                 s2_band=self.s2_band,
@@ -71,7 +71,7 @@ class MMMaskDataModule(pl.LightningDataModule):
                 transform=None,
             )
         else:
-            self.data_test: PretrainingMMMaskDataset = instantiate(
+            self.data_test: PretrainingMMMaskDatasetAux = instantiate(
                 self.test_dataset,
                 max_len=self.max_len,
                 s2_band=self.s2_band,

@@ -46,6 +46,7 @@ class MMSITS:
     sits1b: SITSOneMod
     sits2a: SITSOneMod
     sits2b: SITSOneMod
+    dem: torch.Tensor | None = None
 
 
 class BatchOneMod:
@@ -105,6 +106,7 @@ class BatchMMSits:
     sits1b: BatchOneMod
     sits2a: BatchOneMod
     sits2b: BatchOneMod
+    dem: torch.Tensor
 
     def pin_memory(self):
         self.sits1a = self.sits1a.pin_memory()
@@ -125,6 +127,7 @@ class BatchMMSits:
 class MMChannels:
     s1_channels: int = 3
     s2_channels: int = 10
+    dem_channels: int|None = None
 
 
 def merge2views(viewa: BatchOneMod, viewb: BatchOneMod) -> BatchOneMod:

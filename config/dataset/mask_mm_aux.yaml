@@ -1,0 +1,21 @@
+train:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDatasetAux
+  directory: ${data_dir}/train
+  crop_type: Random
+  s2_tile: [30TXT,31TDL]
+  modalities: [s2,s1_asc,dem]
+  max_len: 60
+val:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDatasetAux
+  directory: ${data_dir}/train
+  crop_type: Random
+  s2_tile: [31TEN]
+  modalities: [s2,s1_asc,dem]
+  max_len: 60
+test:
+  _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDatasetAux
+  directory : ${data_dir}/train
+  crop_type: Random
+  s2_tile: [31TEN]
+  modalities: [s2,s1_asc,dem]
+  max_len: 60
