@@ -72,6 +72,7 @@ class EncoderConfig:
     encoder_s2: CleanUBarnConfig
     common_temp_proj: CommonTempProjConfig
     projector: AliseProjConfig | None = None
+    encoder_dem: CleanUBarnConfig | None = None
 
 
 @dataclass

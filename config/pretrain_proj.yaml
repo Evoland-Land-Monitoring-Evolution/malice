@@ -1,11 +1,11 @@
 defaults:
   - _self_
-  - datamodule: mask_mm.yaml
-  - module : alise_mm_proj.yaml
+  - datamodule: mask_mm_aux.yaml
+  - module : alise_mm_proj_aux.yaml
   - train: pretrain_ssl.yaml
   - callbacks: minimal.yaml
   - logger: default.yaml
-  - dataset: mask_mm.yaml
+  - dataset: mask_mm_aux.yaml
 
 original_work_dir: ${hydra:runtime.cwd}
 name: "malice_pretrain"

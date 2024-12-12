@@ -202,6 +202,7 @@ class CleanUBarn(nn.Module):
             pe_cst=pe_cst,
         )
 
+
         if use_transformer:
             if use_pytorch_transformer:
                 encoder_layer = nn.TransformerEncoderLayer(
@@ -240,10 +241,7 @@ class CleanUBarn(nn.Module):
         x, doy_encoding = self.patch_encoding(
             batch_input.sits, batch_input.input_doy, mask=batch_input.padd_index
         )
-        print(doy_encoding[0, -1, :, 0, 0])
-        print(doy_encoding.shape)
-        print(batch_input.padd_index)
-        exit()
+
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
             x = x + doy_encoding

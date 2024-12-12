@@ -10,6 +10,7 @@ import logging
 import numpy as np
 import torch
 from einops import rearrange, repeat
+from mmmv_ssl.model.clean_ubarn import HSSEncoding
 from mmmv_ssl.model.malice_module import MaliceEncoder, AliseMMModule, MaliceDecoder
 from torch import nn
 
@@ -72,11 +73,9 @@ class MaliceEncoderAux(MaliceEncoder):
                                                 d_model=d_repr,
                                                 input_channels=input_channels.s2 + input_channels.s2_aux,
                                                 )
-        # self.encoder_dem = CleanUBarnReprEncoder(ubarn_config=encoder.encoder_s2,
-        #                                         d_model=d_repr,
-        #                                         input_channels=input_channels.s2 + input_channels.s2_aux,
-        #                                         )
-
+        self.encoder_dem = HSSEncoding(
+            input_channels=input_channels.dem, d_model=d_repr, model_config=unet_config
+        )
 
     def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
         """Get two view of one satellite and encode them with encoder"""
@@ -90,6 +89,8 @@ class MaliceEncoderAux(MaliceEncoder):
 
         out = self.encoder_s1.forward_keep_input_dim(merged_views) if "1" in sat \
             else self.encoder_s2.forward_keep_input_dim(merged_views)
+
+        dem_emb = self.encoder_dem()
 
         mask_tp = repeat(~merged_views.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         my_logger.debug(f"{sat} repr {out.repr.shape}")

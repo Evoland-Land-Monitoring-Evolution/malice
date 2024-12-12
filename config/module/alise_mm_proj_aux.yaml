@@ -49,30 +49,29 @@ model:
           str_conv_p: 1
           border_size: 0
           skip_conv_norm: "batch"
-
-#    encoder_dem:
-#      _target_: mmmv_ssl.model.datatypes.CleanUBarnConfig
-#      ne_layers: 3
-#      d_model: 64
-#      d_hidden: 128
-#      dropout: 0.1
-#      block_name: pff
-#      norm_first: false
-#      nhead: 4
-#      attn_dropout: 0.1
-#      encoding_config:
-#        _target_: mmmv_ssl.model.datatypes.UnetConfig
-#        encoder_widths: [ 64,64,64,128 ]
-#        decoder_widths: [ 32,32,64,128 ]
-#        encoder_norm: "batch"
-#        padding_mode: "reflect"
-#        decoding_norm: "batch"
-#        return_maps: false
-#        str_conv_k: 4
-#        str_conv_s: 2
-#        str_conv_p: 1
-#        border_size: 0
-#        skip_conv_norm: "batch"
+    encoder_dem:
+      _target_: mmmv_ssl.model.datatypes.CleanUBarnConfig
+      ne_layers: 3
+      d_model: 64
+      d_hidden: 128
+      dropout: 0.1
+      block_name: pff
+      norm_first: false
+      nhead: 4
+      attn_dropout: 0.1
+      encoding_config:
+        _target_: mmmv_ssl.model.datatypes.UnetConfig
+        encoder_widths: [ 64,64,64,128 ]
+        decoder_widths: [ 32,32,64,128 ]
+        encoder_norm: "batch"
+        padding_mode: "reflect"
+        decoding_norm: "batch"
+        return_maps: false
+        str_conv_k: 4
+        str_conv_s: 2
+        str_conv_p: 1
+        border_size: 0
+        skip_conv_norm: "batch"
     common_temp_proj:
       _target_: mmmv_ssl.model.datatypes.CommonTempProjConfig
       num_heads: 2
