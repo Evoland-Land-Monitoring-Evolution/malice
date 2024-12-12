@@ -15,10 +15,12 @@ def collate_fn_mm_dataset(batch: Iterable[MMSITS]) -> BatchMMSits:
     sits1b = collate_one_mode([b.sits1b for b in batch])
     sits2a = collate_one_mode([b.sits2a for b in batch])
     sits2b = collate_one_mode([b.sits2b for b in batch])
+    dem = torch.stack([b.dem for b in batch]).unsqueeze(1) if batch[0].dem is not None else None
     return BatchMMSits(sits1a=sits1a,
                        sits1b=sits1b,
                        sits2a=sits2a,
-                       sits2b=sits2b)
+                       sits2b=sits2b,
+                       dem=dem)
 
 
 def collate_one_mode(batch: Iterable[SITSOneMod]) -> BatchOneMod:

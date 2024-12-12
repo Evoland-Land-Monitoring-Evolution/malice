@@ -1,5 +1,5 @@
 datamodule:
-  _target_: mmmv_ssl.data.datamodule.mm_datamodule.MMMaskDataModuleAux
+  _target_: mmmv_ssl.data.datamodule.mm_aux_datamodule.MMMaskDataModuleAux
   num_workers: 2
   max_len: 60
   batch_size: 2

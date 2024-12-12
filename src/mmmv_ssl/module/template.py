@@ -5,6 +5,7 @@ import lightning.pytorch as pl
 import pandas as pd
 import torch
 from hydra.utils import instantiate
+from mmmv_ssl.model.malice_module_aux import AliseMMModuleAux
 from omegaconf import DictConfig
 
 from mmmv_ssl.model.malice_module import AliseMMModule
@@ -28,7 +29,7 @@ class TemplateModule(pl.LightningModule):
         self.metric_name = []
 
         if isinstance(model, DictConfig):
-            self.model: AliseMMModule = instantiate(
+            self.model: AliseMMModule | AliseMMModuleAux = instantiate(
                 model,
                 _recursive_=False
             )

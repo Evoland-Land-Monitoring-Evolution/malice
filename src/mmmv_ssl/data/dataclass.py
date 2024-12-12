@@ -106,7 +106,7 @@ class BatchMMSits:
     sits1b: BatchOneMod
     sits2a: BatchOneMod
     sits2b: BatchOneMod
-    dem: torch.Tensor
+    dem: torch.Tensor | None = None
 
     def pin_memory(self):
         self.sits1a = self.sits1a.pin_memory()

@@ -21,15 +21,12 @@ class PositionalEncoder(nn.Module):
         self.denom = torch.pow(
             T, 2 * (torch.arange(offset, offset + d).float() // 2) / d
         )
-        self.updated_location = False
 
     def forward(self, batch_positions: torch.Tensor) -> torch.Tensor:
         """
         Forward pass to encode DOYs
         """
         self.denom = self.denom.to(batch_positions.device)
-        if not self.updated_location:
-            self.updated_location = True
         sinusoid_table = (
                 batch_positions[:, :, None] / self.denom[None, None, :]
         )  # B x T x C
@@ -44,5 +41,6 @@ class PositionalEncoder(nn.Module):
             sinusoid_table = torch.cat(
                 [sinusoid_table for _ in range(self.repeat)], dim=-1
             )
-
+        print(self.repeat)
+        print(sinusoid_table.shape)
         return sinusoid_table

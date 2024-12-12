@@ -112,3 +112,6 @@ class DataInputChannels:
     """
     s1: int = 3  # pylint: disable=C0103
     s2: int = 10  # pylint: disable=C0103
+    s1_aux: int = 9
+    s2_aux: int = 12
+    dem: int = 4
