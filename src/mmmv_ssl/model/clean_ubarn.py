@@ -233,7 +233,6 @@ class CleanUBarn(nn.Module):
     def forward(
             self,
             batch_input: BInput5d,
-            return_attns: bool,
     ) -> BOutputUBarn:
         """
         Forward pass
@@ -268,7 +267,7 @@ class CleanUBarn(nn.Module):
             my_logger.debug(f"output ubarn clean {x.shape}")
             return BOutputUBarn(x)
 
-        return BOutputUBarn(x, None)
+        return BOutputUBarn(x)
 
 
 class InputEncoding(nn.Module):
