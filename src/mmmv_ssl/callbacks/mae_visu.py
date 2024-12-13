@@ -2,6 +2,7 @@ from collections import namedtuple
 from collections.abc import Iterable
 from typing import Literal
 
+import numpy as np
 import torch
 import torchvision
 from lightning import Callback, Trainer
@@ -155,21 +156,24 @@ class MAECrossRecClb(ImageCallbacks):
             stats = tuple_stats[0]
         else:
             stats = tuple_stats[1]
-
+        print(self.plot_bands)
         if stats is not None:
+            stats = Stats(median=np.array(stats.median)[np.array(self.plot_bands).astype(int)],
+                          qmin=np.array(stats.qmin)[np.array(self.plot_bands).astype(int)],
+                          qmax=np.array(stats.qmax)[np.array(self.plot_bands).astype(int)])
+
             unscale_trg = unscale_data(
                 stats,
-                trg[0, : self.n_images, ...].cpu(),
-            )[:, self.plot_bands, ...]
-
+                trg[0, : self.n_images, self.plot_bands, ...].cpu(),
+            )
             unscale_mnm = unscale_data(
                 stats,
-                pred.same_mod[0, : self.n_images, ...].cpu(),
-            )[:, self.plot_bands, ...]
+                pred.same_mod[0, : self.n_images, self.plot_bands,...].cpu(),
+            )
             unscale_crm = unscale_data(
                 stats,
-                pred.other_mod[0, : self.n_images, ...].cpu(),
-            )[:, self.plot_bands, ...]
+                pred.other_mod[0, : self.n_images, self.plot_bands,...].cpu(),
+            )
         else:
             # print(f"in callbakcs {trg[0, 0, 0, ...]}")
             # TODO improve margin ...
