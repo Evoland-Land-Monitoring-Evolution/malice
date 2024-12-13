@@ -39,6 +39,20 @@ class SITSOneMod:
             padd_mask=padd_index,
         )
 
+    def remove_padded(self, max_len: int):
+        if self.sits.shape[0] > max_len:
+            self.sits = self.sits[:max_len]
+            self.input_doy = self.input_doy[:max_len]
+            if self.true_doy is not None:
+                self.true_doy = self.true_doy[:max_len]
+            if self.padd_mask is not None:
+                self.padd_mask = self.padd_mask[:max_len]
+            if self.mask is not None:
+                self.mask = self.mask[:max_len]
+            return self
+        else:
+            return self.apply_padding(max_len)
+
 
 @dataclass
 class MMSITS:
@@ -113,6 +127,7 @@ class BatchMMSits:
         self.sits2a = self.sits2a.pin_memory()
         self.sits1b = self.sits1b.pin_memory()
         self.sits2b = self.sits2b.pin_memory()
+        self.dem = self.dem.pin_memory()
         return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
@@ -120,6 +135,7 @@ class BatchMMSits:
         self.sits1b = self.sits1b.to(device=device, dtype=dtype)
         self.sits2a = self.sits2a.to(device=device, dtype=dtype)
         self.sits2b = self.sits2b.to(device=device, dtype=dtype)
+        self.dem = self.dem.to(device=device, dtype=dtype)
         return self
 
 

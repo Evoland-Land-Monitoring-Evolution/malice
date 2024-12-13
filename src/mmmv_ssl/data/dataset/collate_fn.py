@@ -11,10 +11,20 @@ from mmmv_ssl.data.dataclass import (
 
 
 def collate_fn_mm_dataset(batch: Iterable[MMSITS]) -> BatchMMSits:
-    sits1a = collate_one_mode([b.sits1a for b in batch])
-    sits1b = collate_one_mode([b.sits1b for b in batch])
-    sits2a = collate_one_mode([b.sits2a for b in batch])
-    sits2b = collate_one_mode([b.sits2b for b in batch])
+    # print(*[b.sits1a.sits.shape for b in batch])
+    # print(*[(~b.sits1a.padd_mask).sum() for b in batch])
+    # print((*[(~b.sits1a.padd_mask).sum() for b in batch], *[(~b.sits1b.padd_mask).sum() for b in batch], *[(~b.sits2a.padd_mask).sum() for b in batch], *[(~b.sits2b.padd_mask).sum() for b in batch]))
+    # print(max(*[(~b.sits1a.padd_mask).sum() for b in batch], *[(~b.sits1b.padd_mask).sum() for b in batch], *[(~b.sits2a.padd_mask).sum() for b in batch], *[(~b.sits2b.padd_mask).sum() for b in batch]))
+    max_len_batch = max(*[(~b.sits1a.padd_mask).sum() for b in batch],
+                        *[(~b.sits1b.padd_mask).sum() for b in batch],
+                        *[(~b.sits2a.padd_mask).sum() for b in batch],
+                        *[(~b.sits2b.padd_mask).sum() for b in batch])
+    if batch[0].dem is not None:
+        max_len_batch += 1
+    sits1a = collate_one_mode([b.sits1a.remove_padded(max_len_batch) for b in batch])
+    sits1b = collate_one_mode([b.sits1b.remove_padded(max_len_batch) for b in batch])
+    sits2a = collate_one_mode([b.sits2a.remove_padded(max_len_batch) for b in batch])
+    sits2b = collate_one_mode([b.sits2b.remove_padded(max_len_batch) for b in batch])
     dem = torch.stack([b.dem for b in batch]).unsqueeze(1) if batch[0].dem is not None else None
     return BatchMMSits(sits1a=sits1a,
                        sits1b=sits1b,
