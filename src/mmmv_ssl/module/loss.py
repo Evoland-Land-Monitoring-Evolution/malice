@@ -4,6 +4,7 @@ from mt_ssl.module.loss import create_mask_loss
 from torch import nn
 
 from mmmv_ssl.data.dataclass import BatchOneMod, BatchMMSits
+from mmmv_ssl.model.datatypes import DataInputChannels
 from mmmv_ssl.module.dataclass import RecWithOrigin, DespeckleS1, Rec, LatRepr, OneViewRecL, TotalRecLoss, \
     GlobalInvRecMMLoss
 from mmmv_ssl.utils.speckle_filter import despeckle_batch
@@ -31,17 +32,20 @@ class ReconstructionLoss(nn.Module):
     def __init__(
             self,
             rec_loss: nn.Module = nn.MSELoss(),
-            margin: int = 0
+            margin: int = 0,
+            channels:DataInputChannels = DataInputChannels()
     ):
         super().__init__()
         self.rec_loss = rec_loss
         self.margin = margin
+        self.channels = channels
 
     def compute_one_rec_loss(self,
                              rec_sits: RecWithOrigin,
                              sits: BatchOneMod,
                              original_sits: torch.Tensor,
-                             return_desp: DespeckleS1 | None = None, margin: int = 0
+                             return_desp: DespeckleS1 | None = None, margin: int = 0,
+                             mod: str = "s2"
                              ) -> OneViewRecL | tuple[None, DespeckleS1]:
         """
         Compute reconstruction loss for one view.
@@ -51,6 +55,10 @@ class ReconstructionLoss(nn.Module):
             sits.padd_index, ~sits.mask
         )  # in .mask True means pixel valid
         h, w = sits.h, sits.w   # pylint: disable=C0103
+        if mod == "s2":
+            b = self.channels.s2
+        else:
+            b = self.channels.s1
         if torch.sum(valid_mask) != 0:
             valid_mask = valid_mask[
                          ...,
@@ -65,7 +73,7 @@ class ReconstructionLoss(nn.Module):
                                         margin: w - margin,
                                         ],
                                         valid_mask),
-                    torch.masked_select(original_sits, valid_mask),
+                    torch.masked_select(original_sits[:, :, :b], valid_mask),
                 ),
                 crossm_rec=self.rec_loss(
                     torch.masked_select(rec_sits.other_mod[
@@ -74,7 +82,7 @@ class ReconstructionLoss(nn.Module):
                                         margin: w - margin,
                                         ],
                                         valid_mask),
-                    torch.masked_select(original_sits, valid_mask),
+                    torch.masked_select(original_sits[:, :, :b], valid_mask),
                 ),
             )
         else:
@@ -97,13 +105,15 @@ class ReconstructionLoss(nn.Module):
                                                  sits=batch.sits1a,
                                                  original_sits=despeckle_s1a,
                                                  return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
-                                                 margin=margin)
+                                                 margin=margin,
+                                                 mod = "s1")
 
         s1b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1b,
                                                  sits=batch.sits1b,
                                                  original_sits=despeckle_s1b,
                                                  return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
-                                                 margin=margin)
+                                                 margin=margin,
+                                                 mod = "s1")
 
         s2a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2a,
                                                  sits=batch.sits2a,

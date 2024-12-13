@@ -32,7 +32,7 @@ class AliseMM(TemplateModule):
         self.margin = 3
 
         self.inv_loss = InvarianceLoss(torch.nn.MSELoss(), same_mod_loss=same_mod_loss, margin=self.margin)
-        self.rec_loss = ReconstructionLoss(torch.nn.MSELoss(), margin=self.margin)
+        self.rec_loss = ReconstructionLoss(torch.nn.MSELoss(), margin=self.margin, channels=self.model.input_channels)
         self.global_loss = GlobalLoss(weights.w_inv, weights.w_rec, weights.w_crossrec)
 
         if weights.w_inv == 0:
