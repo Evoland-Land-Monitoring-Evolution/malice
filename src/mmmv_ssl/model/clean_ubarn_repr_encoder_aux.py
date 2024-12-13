@@ -1,13 +1,14 @@
 import logging
-from imaplib import Literal
+from typing import Literal
 
+import torch
 import torch.nn as nn
 from einops import repeat, rearrange
+
+from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.clean_ubarn import CleanUBarn, HSSEncoding
 from mmmv_ssl.model.datatypes import CleanUBarnConfig, UnetConfig
 from mt_ssl.data.mt_batch import BInput5d, BOutputReprEnco, BOutputUBarn
-
-
 
 my_logger = logging.getLogger(__name__)
 
@@ -33,7 +34,6 @@ class CleanUBarnAux(CleanUBarn):
             pe_cst: int = 10000,
             use_transformer: bool = True,
             use_pytorch_transformer: bool = True,
-            encoding_dem_config: UnetConfig = UnetConfig()
     ):
         super().__init__(ne_layers,
                          d_model,
@@ -49,38 +49,45 @@ class CleanUBarnAux(CleanUBarn):
                          use_transformer,
                          use_pytorch_transformer)
 
-        self.dem_encoding = HSSEncoding(
-            input_channels=4, d_model=d_model, model_config=encoding_dem_config
-        )
-
+        # dem encoder is be attributed in MALICEEncodermodule as it is common for S1 and S2 encoder
+        self.encoder_dem: HSSEncoding  # TODO do smth better
 
     def forward(
             self,
             batch_input: BInput5d,
             return_attns: bool,
+            dem: torch.Tensor,
     ) -> BOutputUBarn:
         """
         Forward pass
         """
+
+        padd_index=batch_input.padd_index
+
+        x_dem = self.encoder_dem(dem)
+        x_dem = torch.cat((x_dem, x_dem), dim=0)
+
         x, doy_encoding = self.patch_encoding(
-            batch_input.sits, batch_input.input_doy, mask=batch_input.padd_index
+            batch_input.sits, batch_input.input_doy, mask=padd_index
         )
-        x_dem = self.dem_encoding(batch_input.sits)
+
+        to_replace = (~batch_input.padd_index).sum(1)
 
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
             x = x + doy_encoding
+            padd_index[torch.arange(x.shape[0]), to_replace] = False
+            x[torch.arange(x.shape[0]), to_replace] = x_dem.squeeze(1)
             # print(batch_input.padd_index.shape)
             # print(x.shape)
             b, _, _, h, w = x.shape
             if isinstance(self.temporal_encoder, nn.TransformerEncoder):
                 padd_index = repeat(
-                    batch_input.padd_index, "b t -> b t h w ", h=h, w=w
+                    padd_index, "b t -> b t h w ", h=h, w=w
                 )
                 padd_index = rearrange(padd_index, " b t h w -> (b h w ) t")
                 x = rearrange(x, "b t c h w -> (b h w ) t c")
-            else:
-                padd_index = batch_input.padd_index
+
             my_logger.debug(f"before transformer {x.shape}")
             x = self.temporal_encoder(
                 x,
@@ -93,10 +100,11 @@ class CleanUBarnAux(CleanUBarn):
             my_logger.debug(f"output ubarn clean {x.shape}")
             return BOutputUBarn(x)
 
+        x[torch.arange(x.shape[0]), to_replace] = x_dem.squeeze(1)
         return BOutputUBarn(x, None)
 
 
-class CleanUBarnReprEncoder(nn.Module):
+class CleanUBarnReprEncoderAux(nn.Module):
     def __init__(
             self,
             ubarn_config: CleanUBarnConfig,
@@ -121,11 +129,11 @@ class CleanUBarnReprEncoder(nn.Module):
 
     def forward(
             self,
-            batch_input: BInput5d,
+            batch_input: BatchOneMod,
+            dem: torch.Tensor,
             return_attns=True,
-            mtan_grad: bool = True,
     ) -> BOutputReprEnco:
-        batch_output = self.ubarn(batch_input, return_attns=return_attns)
+        batch_output = self.ubarn(batch_input, dem=dem, return_attns=return_attns)
 
         return BOutputReprEnco(
             repr=batch_output.output,
@@ -134,15 +142,15 @@ class CleanUBarnReprEncoder(nn.Module):
         )
 
     def forward_keep_input_dim(
-            self, batch_input: BInput5d, return_attns=True
+            self, batch_input: BatchOneMod, dem: torch.Tensor
     ) -> BOutputReprEnco:
-        return self.forward(batch_input)
-    #
-    # def load_ubarn(self, path_ckpt):
-    #     my_logger.info(f"We load state dict  from {path_ckpt}")
-    #     if not torch.cuda.is_available():
-    #         map_params = {"map_location": "cpu"}
-    #     else:
-    #         map_params = {}
-    #     ckpt = torch.load(path_ckpt, **map_params)
-    #     self.ubarn.load_state_dict(ckpt["ubarn_state_dict"])
+        return self.forward(batch_input, dem)
+    # #
+    # # def load_ubarn(self, path_ckpt):
+    # #     my_logger.info(f"We load state dict  from {path_ckpt}")
+    # #     if not torch.cuda.is_available():
+    # #         map_params = {"map_location": "cpu"}
+    # #     else:
+    # #         map_params = {}
+    # #     ckpt = torch.load(path_ckpt, **map_params)
+    # #     self.ubarn.load_state_dict(ckpt["ubarn_state_dict"])

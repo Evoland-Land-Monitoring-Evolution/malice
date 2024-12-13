@@ -11,6 +11,7 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 from mmmv_ssl.model.clean_ubarn import HSSEncoding
+from mmmv_ssl.model.clean_ubarn_repr_encoder_aux import CleanUBarnReprEncoderAux
 from mmmv_ssl.model.malice_module import MaliceEncoder, AliseMMModule, MaliceDecoder
 from torch import nn
 
@@ -38,11 +39,13 @@ class AliseMMModuleAux(AliseMMModule):
                  ):
         super().__init__(encoder, decoder, input_channels, d_repr)
         self.encoder = MaliceEncoderAux(encoder,
-                                     input_channels=input_channels,
-                                     d_repr=d_repr)
+                                        input_channels=input_channels,
+                                        d_repr=d_repr)
         self.decoder = MaliceDecoder(decoder,
                                      input_channels=input_channels,
                                      d_repr=d_repr)
+
+        self.input_channels = input_channels
 
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         """Forward pass"""
@@ -65,17 +68,21 @@ class MaliceEncoderAux(MaliceEncoder):
                  ):
         super().__init__(encoder, input_channels, d_repr)
 
-        self.encoder_s1 = CleanUBarnReprEncoder(ubarn_config=encoder.encoder_s1,
-                                                d_model=d_repr,
-                                                input_channels=input_channels.s1 + input_channels.s1_aux,
-                                                )
-        self.encoder_s2 = CleanUBarnReprEncoder(ubarn_config=encoder.encoder_s2,
-                                                d_model=d_repr,
-                                                input_channels=input_channels.s2 + input_channels.s2_aux,
-                                                )
+        self.encoder_s1 = CleanUBarnReprEncoderAux(ubarn_config=encoder.encoder_s1,
+                                                   d_model=d_repr,
+                                                   input_channels=input_channels.s1 + input_channels.s1_aux,
+                                                   )
+        self.encoder_s2 = CleanUBarnReprEncoderAux(ubarn_config=encoder.encoder_s2,
+                                                   d_model=d_repr,
+                                                   input_channels=input_channels.s2 + input_channels.s2_aux,
+                                                   )
         self.encoder_dem = HSSEncoding(
-            input_channels=input_channels.dem, d_model=d_repr, model_config=unet_config
+            input_channels=input_channels.dem, d_model=d_repr, model_config=encoder.encoder_dem
         )
+
+        self.encoder_s1.ubarn.encoder_dem = self.encoder_dem
+        self.encoder_s2.ubarn.encoder_dem = self.encoder_dem
+
 
     def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
         """Get two view of one satellite and encode them with encoder"""
@@ -87,10 +94,8 @@ class MaliceEncoderAux(MaliceEncoder):
         w = view1.w
         merged_views = merge2views(view1, view2)
 
-        out = self.encoder_s1.forward_keep_input_dim(merged_views) if "1" in sat \
-            else self.encoder_s2.forward_keep_input_dim(merged_views)
-
-        dem_emb = self.encoder_dem()
+        out = self.encoder_s1.forward_keep_input_dim(merged_views, batch.dem) if "1" in sat \
+            else self.encoder_s2.forward_keep_input_dim(merged_views, batch.dem)
 
         mask_tp = repeat(~merged_views.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         my_logger.debug(f"{sat} repr {out.repr.shape}")
@@ -121,4 +126,3 @@ class MaliceEncoderAux(MaliceEncoder):
         )
 
         return reprojected, out_emb, mm_embedding
-

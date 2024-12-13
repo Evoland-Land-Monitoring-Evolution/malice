@@ -41,6 +41,4 @@ class PositionalEncoder(nn.Module):
             sinusoid_table = torch.cat(
                 [sinusoid_table for _ in range(self.repeat)], dim=-1
             )
-        print(self.repeat)
-        print(sinusoid_table.shape)
         return sinusoid_table
