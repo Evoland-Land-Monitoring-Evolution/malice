@@ -156,7 +156,7 @@ class MAECrossRecClb(ImageCallbacks):
             stats = tuple_stats[0]
         else:
             stats = tuple_stats[1]
-        print(self.plot_bands)
+
         if stats is not None:
             stats = Stats(median=np.array(stats.median)[np.array(self.plot_bands).astype(int)],
                           qmin=np.array(stats.qmin)[np.array(self.plot_bands).astype(int)],
