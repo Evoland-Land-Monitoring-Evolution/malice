@@ -1,9 +1,11 @@
 import logging
 
 import torch.nn as nn
+
+from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.clean_ubarn import CleanUBarn
 from mmmv_ssl.model.datatypes import CleanUBarnConfig
-from mt_ssl.data.mt_batch import BInput5d, BOutputReprEnco
+from mt_ssl.data.mt_batch import BOutputReprEnco
 
 my_logger = logging.getLogger(__name__)
 
@@ -33,9 +35,8 @@ class CleanUBarnReprEncoder(nn.Module):
 
     def forward(
             self,
-            batch_input: BInput5d,
-            return_attns=True,
-            mtan_grad: bool = True,
+            batch_input: BatchOneMod,
+            return_attns: bool = True,
     ) -> BOutputReprEnco:
         batch_output = self.ubarn(batch_input, return_attns=return_attns)
 
@@ -46,7 +47,7 @@ class CleanUBarnReprEncoder(nn.Module):
         )
 
     def forward_keep_input_dim(
-            self, batch_input: BInput5d, return_attns=True
+            self, batch_input: BatchOneMod
     ) -> BOutputReprEnco:
         return self.forward(batch_input)
     #
