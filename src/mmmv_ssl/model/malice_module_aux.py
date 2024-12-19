@@ -11,7 +11,7 @@ import numpy as np
 import torch
 from einops import rearrange, repeat
 from mmmv_ssl.model.clean_ubarn import HSSEncoding
-from mmmv_ssl.model.clean_ubarn_repr_encoder_aux import CleanUBarnReprEncoderAux
+from mmmv_ssl.model.clean_ubarn_repr_encoder_aux import CleanUBarnReprEncoderAux, MeteoEncoder
 from mmmv_ssl.model.malice_module import MaliceEncoder, AliseMMModule, MaliceDecoder
 from torch import nn
 
@@ -68,20 +68,37 @@ class MaliceEncoderAux(MaliceEncoder):
                  ):
         super().__init__(encoder, input_channels, d_repr)
 
+        channels_s1 = input_channels.s1 + input_channels.s1_aux
+        channels_s2 = input_channels.s2 + input_channels.s2_aux
+
+        if encoder.encoder_meteo.concat_before_unet:
+            channels_s1 += encoder.encoder_meteo.widths[-1]
+            channels_s2 += encoder.encoder_meteo.widths[-1]
+
         self.encoder_s1 = CleanUBarnReprEncoderAux(ubarn_config=encoder.encoder_s1,
                                                    d_model=d_repr,
-                                                   input_channels=input_channels.s1 + input_channels.s1_aux,
+                                                   input_channels=channels_s1,
                                                    )
         self.encoder_s2 = CleanUBarnReprEncoderAux(ubarn_config=encoder.encoder_s2,
                                                    d_model=d_repr,
-                                                   input_channels=input_channels.s2 + input_channels.s2_aux,
+                                                   input_channels=channels_s2,
                                                    )
-        self.encoder_dem = HSSEncoding(
+        encoder_dem = HSSEncoding(
             input_channels=input_channels.dem, d_model=d_repr, model_config=encoder.encoder_dem
         )
 
-        self.encoder_s1.ubarn.encoder_dem = self.encoder_dem
-        self.encoder_s2.ubarn.encoder_dem = self.encoder_dem
+        self.encoder_s1.ubarn.encoder_dem = encoder_dem
+        self.encoder_s2.ubarn.encoder_dem = encoder_dem
+
+        self.encoder_s1.ubarn.encoder_meteo = MeteoEncoder(
+            config=encoder.encoder_meteo,
+            input_channels=input_channels.s2_meteo
+        )
+
+        self.encoder_s2.ubarn.encoder_meteo = MeteoEncoder(
+            config=encoder.encoder_meteo,
+            input_channels=input_channels.s1_meteo
+        )
 
 
     def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
@@ -94,8 +111,8 @@ class MaliceEncoderAux(MaliceEncoder):
         w = view1.w
         merged_views = merge2views(view1, view2)
 
-        out = self.encoder_s1.forward_keep_input_dim(merged_views, batch.dem) if "1" in sat \
-            else self.encoder_s2.forward_keep_input_dim(merged_views, batch.dem)
+        out = self.encoder_s1(merged_views, batch.dem) if "1" in sat \
+            else self.encoder_s2(merged_views, batch.dem)
 
         mask_tp = repeat(~merged_views.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         my_logger.debug(f"{sat} repr {out.repr.shape}")

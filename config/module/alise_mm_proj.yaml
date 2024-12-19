@@ -55,25 +55,25 @@ model:
       n_q: 10
     projector:
       _target_: mmmv_ssl.model.datatypes.AliseProjConfig
-      l_dim: [ 32 ]
-      out_channels: 32
+      l_dim: [ 64 ]
+      out_channels: 64
       freeze: true
   decoder:
     _target_: mmmv_ssl.model.datatypes.DecoderConfig
     meta_decoder:
         _target_: mmmv_ssl.model.datatypes.MetaDecoderConfig
         num_heads: 2
-        d_k: 32
+        d_k: 64
         intermediate_layers: null
 #    pe_config:
 #        _target_: mmmv_ssl.model.encoding.PositionalEncoder
     query_s1s2_d: 16
-    pe_channels: 32
+    pe_channels: 64
   input_channels:
     _target_: mmmv_ssl.model.datatypes.DataInputChannels
     s2: 10
     s1: 3
-  d_repr: 32
+  d_repr: 64
 
 weights:
   _target_: mmmv_ssl.module.dataclass.WeightClass
@@ -83,4 +83,4 @@ weights:
 
 lr: 0.001
 
-same_mod_loss: true
+same_mod_loss: false

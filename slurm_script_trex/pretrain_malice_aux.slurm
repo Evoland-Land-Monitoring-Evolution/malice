@@ -27,4 +27,4 @@ export CUDA_LAUNCH_BLOCKING=1
 
 export PYTHONWARNINGS="ignore"
 
-HYDRA_FULL_ERROR=1 python -O ${SRCDIR}/script/pretrain.py --config-name=pretrain_proj.yaml callbacks=mae_clb seed=0 dataset=mask_mm_aux.yaml datamodule=mask_mm_aux.yaml train.trainer.precision=32 module=alise_mm_proj_aux hydra.job.name=mm_mae_sd_speckle_all_fix name=malice_pretrain_aux
+HYDRA_FULL_ERROR=1 python -O ${SRCDIR}/script/pretrain.py --config-name=pretrain_proj_aux.yaml
