@@ -46,10 +46,15 @@ def collate_one_mode(batch: Iterable[SITSOneMod]) -> BatchOneMod:
         b_true_doy = torch.stack([b.true_doy for b in batch])
     else:
         b_true_doy = None
+    if batch[0].meteo is not None:
+        meteo = torch.stack([b.meteo for b in batch])
+    else:
+        meteo = None
     return BatchOneMod(
         sits=b_sits,
         input_doy=b_doy,
         true_doy=b_true_doy,
         mask=b_mask,
         padd_index=b_padd_mask,
+        meteo=meteo
     )

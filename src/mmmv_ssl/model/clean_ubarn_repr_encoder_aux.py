@@ -7,10 +7,43 @@ from einops import repeat, rearrange
 
 from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.clean_ubarn import CleanUBarn, HSSEncoding
-from mmmv_ssl.model.datatypes import CleanUBarnConfig, UnetConfig
+from mmmv_ssl.model.datatypes import CleanUBarnConfig, UnetConfig, MeteoConfig
 from mt_ssl.data.mt_batch import BInput5d, BOutputReprEnco, BOutputUBarn
 
 my_logger = logging.getLogger(__name__)
+
+
+class MeteoEncoder(nn.Module):
+    def __init__(
+            self,
+            config: MeteoConfig,
+            input_channels: int
+    ):
+        super().__init__()
+        width = [input_channels] + config.widths
+        layers = []
+        for i in range(len(width) - 1):
+            layers.extend([nn.Linear(width[i], width[i + 1]),
+                       nn.ReLU()])
+        self.encoder = nn.Sequential(*layers)
+        self.before_unet = config.concat_before_unet
+
+    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+        """Forward pass for meteo data. MLP layers"""
+        b, n, c, d = x.shape
+        x = rearrange(x, "b n c d -> (b n) (c d) ")
+        if mask is not None:
+            mask = rearrange(mask, "b n -> (b n )")
+            x = self.encoder(x[~mask])
+            x_res = torch.zeros(b * n, x.shape[1]).to(x.device)
+            x_res[~mask] = x
+            x = x_res
+        else:
+            x = self.encoder(x)
+        x = rearrange(x, "( b n ) cd  -> b n cd ", b=b)
+        return x
+
+
 
 
 class CleanUBarnAux(CleanUBarn):
@@ -52,25 +85,34 @@ class CleanUBarnAux(CleanUBarn):
         # dem encoder is be attributed in MALICEEncodermodule as it is common for S1 and S2 encoder
         self.encoder_dem: HSSEncoding  # TODO do smth better
 
+        self.encoder_meteo: MeteoEncoder
+
     def forward(
             self,
             batch_input: BInput5d,
-            return_attns: bool,
             dem: torch.Tensor,
     ) -> BOutputUBarn:
         """
         Forward pass
         """
 
-        padd_index=batch_input.padd_index
+        padd_index = batch_input.padd_index
 
+        # We encode dem abd expand it to two views
         x_dem = self.encoder_dem(dem)
         x_dem = torch.cat((x_dem, x_dem), dim=0)
 
-        x, doy_encoding = self.patch_encoding(
-            batch_input.sits, batch_input.input_doy, mask=padd_index
-        )
-
+        meteo_encoded = self.encoder_meteo(
+            batch_input.meteo, mask=padd_index
+        )[:, :, :, None, None].expand(-1, -1, -1, *batch_input.sits.shape[-2:])
+        if self.encoder_meteo.before_unet:
+            x, doy_encoding = self.patch_encoding(
+                torch.concat([batch_input.sits, meteo_encoded], 2),
+                batch_input.input_doy,
+                mask=padd_index
+            )
+        else:
+            raise NotImplementedError
         to_replace = (~batch_input.padd_index).sum(1)
 
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
@@ -131,26 +173,11 @@ class CleanUBarnReprEncoderAux(nn.Module):
             self,
             batch_input: BatchOneMod,
             dem: torch.Tensor,
-            return_attns=True,
     ) -> BOutputReprEnco:
-        batch_output = self.ubarn(batch_input, dem=dem, return_attns=return_attns)
+        batch_output = self.ubarn(batch_input, dem=dem)
 
         return BOutputReprEnco(
             repr=batch_output.output,
             doy=batch_input.input_doy,
             attn_ubarn=batch_output.attn,
         )
-
-    def forward_keep_input_dim(
-            self, batch_input: BatchOneMod, dem: torch.Tensor
-    ) -> BOutputReprEnco:
-        return self.forward(batch_input, dem)
-    # #
-    # # def load_ubarn(self, path_ckpt):
-    # #     my_logger.info(f"We load state dict  from {path_ckpt}")
-    # #     if not torch.cuda.is_available():
-    # #         map_params = {"map_location": "cpu"}
-    # #     else:
-    # #         map_params = {}
-    # #     ckpt = torch.load(path_ckpt, **map_params)
-    # #     self.ubarn.load_state_dict(ckpt["ubarn_state_dict"])

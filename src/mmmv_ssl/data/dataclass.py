@@ -1,15 +1,40 @@
 from dataclasses import dataclass
 import logging
+
+import numpy as np
 import torch
 import torch.nn.functional as F
+from openeo_mmdc.dataset.dataclass import MaskMod
 from openeo_mmdc.dataset.padding import apply_padding
 from torch import Tensor
 my_logger=logging.getLogger(__name__)
+
+
+
+@dataclass
+class OneMod:
+    sits: Tensor
+    doy: Tensor | None
+    mask: MaskMod | None = MaskMod()
+    true_doy: None | Tensor = None
+    dates: None | np.datetime64 = None
+    meteo: None | Tensor = None
+
+
+@dataclass
+class ItemTensorMMDC:
+    s2: OneMod | None = None
+    s1_asc: OneMod | None = None
+    s1_desc: OneMod | None = None
+    dem: OneMod | None = None
+    agera5: OneMod | None = None
+
 
 @dataclass
 class SITSOneMod:
     sits: Tensor
     input_doy: Tensor
+    meteo: Tensor | None = None
     true_doy: Tensor | None = None
     padd_mask: Tensor | None = None
     mask: Tensor | None = None
@@ -17,7 +42,6 @@ class SITSOneMod:
     def apply_padding(self, max_len: int, allow_padd=True):
         # sits = rearrange(self.sits, "t c h w -> t c h w")
         t = self.sits.shape[0]
-
         sits, doy, padd_index = apply_padding(allow_padd, max_len, t,
                                               self.sits, self.input_doy)
         my_logger.debug(f"t = {t} paddinx {padd_index}")
@@ -31,12 +55,18 @@ class SITSOneMod:
             mask = F.pad(self.mask, padd_tensor)
         else:
             mask = None
+        if self.meteo is not None:
+            padd_tensor = (0, 0, 0, 0, 0, max_len - t)
+            meteo = F.pad(self.meteo, padd_tensor)
+        else:
+            meteo = None
         return SITSOneMod(
             sits=sits,
             input_doy=doy,
             true_doy=true_doy,
             mask=mask,
             padd_mask=padd_index,
+            meteo=meteo
         )
 
     def remove_padded(self, max_len: int):
@@ -49,6 +79,8 @@ class SITSOneMod:
                 self.padd_mask = self.padd_mask[:max_len]
             if self.mask is not None:
                 self.mask = self.mask[:max_len]
+            if self.meteo is not None:
+                self.meteo = self.meteo[:max_len]
             return self
         else:
             return self.apply_padding(max_len)
@@ -70,6 +102,7 @@ class BatchOneMod:
         sits: Tensor,
         input_doy: Tensor,
         true_doy: Tensor,
+        meteo: Tensor = None,
         padd_index: Tensor = None,
         mask: Tensor | None = None,
     ):
@@ -85,6 +118,7 @@ class BatchOneMod:
                     ), f"Incorrect padd_doy {padd_index.shape}"
         self.padd_index = padd_index
         self.mask = mask
+        self.meteo = meteo
         self.b = sits.shape[0]
         self.t = sits.shape[1]
         self.c = sits.shape[2]
@@ -100,6 +134,8 @@ class BatchOneMod:
             self.padd_index = self.padd_index.pin_memory()
         if self.mask is not None:
             self.mask = self.mask.pin_memory()
+        if self.meteo is not None:
+            self.meteo = self.meteo.pin_memory()
         return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
@@ -111,6 +147,8 @@ class BatchOneMod:
             self.padd_index = self.padd_index.to(device=device, dtype=dtype)
         if self.mask is not None:
             self.mask = self.mask.to(device=device, dtype=dtype)
+        if self.meteo is not None:
+            self.meteo = self.meteo.to(device=device, dtype=dtype)
         return self
 
 
@@ -127,7 +165,7 @@ class BatchMMSits:
         self.sits2a = self.sits2a.pin_memory()
         self.sits1b = self.sits1b.pin_memory()
         self.sits2b = self.sits2b.pin_memory()
-        self.dem = self.dem.pin_memory()
+        self.dem = self.dem.pin_memory() if self.dem is not None else None
         return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
@@ -135,7 +173,7 @@ class BatchMMSits:
         self.sits1b = self.sits1b.to(device=device, dtype=dtype)
         self.sits2a = self.sits2a.to(device=device, dtype=dtype)
         self.sits2b = self.sits2b.to(device=device, dtype=dtype)
-        self.dem = self.dem.to(device=device, dtype=dtype)
+        self.dem = self.dem.to(device=device, dtype=dtype) if self.dem is not None else None
         return self
 
 
@@ -143,6 +181,10 @@ class BatchMMSits:
 class MMChannels:
     s1_channels: int = 3
     s2_channels: int = 10
+    s1_aux_channels: int = 1
+    s2_aux_channels: int = 1
+    s1_meteo_channels: int = 8
+    s2_meteo_channels: int = 8
     dem_channels: int|None = None
 
 
@@ -158,10 +200,15 @@ def merge2views(viewa: BatchOneMod, viewb: BatchOneMod) -> BatchOneMod:
     else:
         mask = None
     padd_mask = torch.cat([viewa.padd_index, viewb.padd_index])
+    if viewa.meteo is not None:
+        meteo = torch.cat([viewa.meteo, viewb.meteo])
+    else:
+        meteo = None
     return BatchOneMod(
         sits=sits,
         input_doy=input_doy,
         true_doy=true_doy,
         padd_index=padd_mask,
         mask=mask,
+        meteo=meteo
     )

@@ -24,6 +24,17 @@ class UnetConfig:
 
 
 @dataclass
+class MeteoConfig:
+    """
+    Meteo Encoder class initialization config
+    """
+    widths: list[int] = (64, 64, 32)
+    activation: str = "relu"
+    common_s1_s2: bool = False
+    # if we concatenate encoded meteo to images before or after we pass them to unet
+    concat_before_unet: bool = True
+
+@dataclass
 class CommonTempProjConfig:
     """
     Common Temporal Projector class initialization config
@@ -71,6 +82,7 @@ class EncoderConfig:
     encoder_s1: CleanUBarnConfig
     encoder_s2: CleanUBarnConfig
     common_temp_proj: CommonTempProjConfig
+    encoder_meteo: MeteoConfig | None = None
     projector: AliseProjConfig | None = None
     encoder_dem: CleanUBarnConfig | None = None
 
@@ -113,6 +125,8 @@ class DataInputChannels:
     """
     s1: int = 3  # pylint: disable=C0103
     s2: int = 10  # pylint: disable=C0103
-    s1_aux: int = 9
-    s2_aux: int = 12
-    dem: int = 4
+    s1_aux: int | None = 9
+    s2_aux: int | None = 12
+    s1_meteo: int | None = 8
+    s2_meteo: int | None = 8
+    dem: int | None = 4

@@ -47,6 +47,8 @@ class AliseMMModule(nn.Module):
                                      input_channels=input_channels,
                                      d_repr=d_repr)
 
+        self.input_channels = input_channels
+
     def forward(self, batch: BatchMMSits) -> OutMMAliseF:
         """Forward pass"""
         reprojected, out_emb, mm_embedding = self.encoder(batch)
@@ -167,8 +169,8 @@ class MaliceEncoder(nn.Module):
         w = view1.w
         merged_views = merge2views(view1, view2)
 
-        out = self.encoder_s1.forward_keep_input_dim(merged_views) if "1" in sat \
-            else self.encoder_s2.forward_keep_input_dim(merged_views)
+        out = self.encoder_s1(merged_views) if "1" in sat \
+            else self.encoder_s2(merged_views)
 
         mask_tp = repeat(~merged_views.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         my_logger.debug(f"{sat} repr {out.repr.shape}")
