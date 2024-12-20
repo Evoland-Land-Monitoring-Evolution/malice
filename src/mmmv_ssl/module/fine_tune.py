@@ -17,8 +17,6 @@ from mt_ssl.module.template import TemplateClassifModule
 from mt_ssl.module.template_ft_module import FTParams
 from omegaconf import DictConfig
 from openeo_mmdc.dataset.dataclass import Stats
-from openeo_mmdc.dataset.padding import apply_padding
-from openeo_mmdc.dataset.to_tensor import load_transform_one_mod
 from torch import nn
 from torchmetrics import MetricCollection
 

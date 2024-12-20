@@ -30,9 +30,9 @@ class MonoSITSEncoder(TemplateReprEncoder, ABC):
         self.nq = self.query.shape[1]
 
     def forward(
-            self, batch_input: ClassifBInput, return_attns=False
+            self, batch_input: ClassifBInput
     ) -> BOutputReprEnco:
-        batch_output = self.ubarn(batch_input, return_attns=False)
+        batch_output = self.ubarn(batch_input)
         padd_mask = repeat(
             batch_input.padd_index,
             "b n -> b n h w ",
@@ -55,7 +55,7 @@ class MonoSITSEncoder(TemplateReprEncoder, ABC):
         )
 
     def forward_keep_input_dim(
-            self, batch_input: ClassifBInput, returns_attns: bool = False
+            self, batch_input: ClassifBInput
     ) -> BOutputReprEnco:
         b, n, c, h, w = batch_input.sits.shape
         out = self.forward(batch_input)

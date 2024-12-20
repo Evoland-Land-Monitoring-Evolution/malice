@@ -36,26 +36,11 @@ class CleanUBarnReprEncoder(nn.Module):
     def forward(
             self,
             batch_input: BatchOneMod,
-            return_attns: bool = True,
     ) -> BOutputReprEnco:
-        batch_output = self.ubarn(batch_input, return_attns=return_attns)
+        batch_output = self.ubarn(batch_input)
 
         return BOutputReprEnco(
             repr=batch_output.output,
             doy=batch_input.input_doy,
             attn_ubarn=batch_output.attn,
         )
-
-    def forward_keep_input_dim(
-            self, batch_input: BatchOneMod
-    ) -> BOutputReprEnco:
-        return self.forward(batch_input)
-    #
-    # def load_ubarn(self, path_ckpt):
-    #     my_logger.info(f"We load state dict  from {path_ckpt}")
-    #     if not torch.cuda.is_available():
-    #         map_params = {"map_location": "cpu"}
-    #     else:
-    #         map_params = {}
-    #     ckpt = torch.load(path_ckpt, **map_params)
-    #     self.ubarn.load_state_dict(ckpt["ubarn_state_dict"])

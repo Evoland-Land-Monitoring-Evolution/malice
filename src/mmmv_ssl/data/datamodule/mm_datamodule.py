@@ -11,8 +11,7 @@ from omegaconf import DictConfig
 from openeo_mmdc.dataset.to_tensor import load_all_transforms
 from torch.utils.data import DataLoader
 
-from mmmv_ssl.constant.dataset import S2_BAND
-from mmmv_ssl.data.dataclass import BatchMMSits, MMChannels
+from mmmv_ssl.data.dataclass import BatchMMSits
 from mmmv_ssl.data.dataset.collate_fn import collate_fn_mm_dataset
 from mmmv_ssl.data.dataset.pretraining_mm_mask import PretrainingMMMaskDataset
 from mmmv_ssl.data.dataset.pretraining_mm_year_dataset import (
@@ -27,57 +26,34 @@ class MMMaskDataModule(pl.LightningDataModule):
     def __init__(
         self,
         config_dataset,
-        s2_band: list | None = None,
         batch_size: int = 2,
-        crop_size: int = 64,
         num_workers: int = 2,
         path_dir_csv: None = None,
-        prefetch_factor: int = 2,
-        max_len=60,
     ):
         super().__init__()
-        self.max_len = max_len
         self.train_dataset: ConfigPretrainingMMYearDataset | DictConfig = config_dataset.train
         self.val_dataset = config_dataset.val
         self.test_dataset = config_dataset.test
         self.num_workers = num_workers
-        self.crop_size = crop_size
-        if s2_band is None:
-            s2_band = S2_BAND
-        self.s2_band = s2_band
         self.batch_size = batch_size
         self.path_dir_csv = path_dir_csv
-        self.prefetch_factor = prefetch_factor
         self.all_transform = load_all_transforms(self.path_dir_csv,
                                                  modalities=["s1_asc", "s2"])
-        self.num_channels = MMChannels(s2_channels=len(s2_band), s1_channels=3)
 
     def setup(self, stage: str) -> None:
         if stage == "fit":
             self.data_train: PretrainingMMMaskDataset = instantiate(
                 self.train_dataset,
-                max_len=self.max_len,
-                s2_band=self.s2_band,
-                crop_size=self.crop_size,
                 dataset_type="train",
-                transform=None,
             )
             self.data_val: PretrainingMMMaskDataset = instantiate(
                 self.val_dataset,
-                max_len=self.max_len,
-                s2_band=self.s2_band,
-                crop_size=self.crop_size,
                 dataset_type="val",
-                transform=None,
             )
         else:
             self.data_test: PretrainingMMMaskDataset = instantiate(
                 self.test_dataset,
-                max_len=self.max_len,
-                s2_band=self.s2_band,
-                crop_size=self.crop_size,
                 dataset_type="test",
-                transform=None,
             )
 
     def train_dataloader(self) -> TRAIN_DATALOADERS:
@@ -122,7 +98,7 @@ class MMMaskDataModule(pl.LightningDataModule):
         #print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
         sits2b = apply_transform_basic(
             batch.sits2b.sits, transform=self.all_transform.s2.transform)
-        dem = apply_transform_basic(batch.dem, transform=self.all_transform.dem.transform)
+
         batch.sits2a.sits = sits2a
         batch.sits2b.sits = sits2b
         batch.sits1a.sits = sits1a
