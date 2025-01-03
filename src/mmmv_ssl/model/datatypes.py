@@ -5,6 +5,8 @@ Configuration dataclasses for Malice model
 from dataclasses import dataclass
 from typing import Literal
 
+import torch
+
 
 @dataclass
 class UnetConfig:
@@ -130,3 +132,19 @@ class DataInputChannels:
     s1_meteo: int | None = 8
     s2_meteo: int | None = 8
     dem: int | None = 4
+
+
+@dataclass
+class BOutputUBarn:
+    output: torch.Tensor
+    padd_index: torch.Tensor | None = None
+
+
+@dataclass
+class BOutputReprEncoder:
+    """
+    Class which encapsulate the output of the representation encoder
+    """
+    repr: torch.Tensor  # shape for mt_ssl (b f h w ) k c
+    doy: torch.Tensor
+    padd_index: None | torch.Tensor = None

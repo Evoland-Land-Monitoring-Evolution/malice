@@ -7,7 +7,6 @@ end encoder and decoder classes
 
 import logging
 
-import numpy as np
 import torch
 from einops import rearrange, repeat
 from mmmv_ssl.model.clean_ubarn import HSSEncoding
@@ -15,12 +14,9 @@ from mmmv_ssl.model.clean_ubarn_repr_encoder_aux import CleanUBarnReprEncoderAux
 from mmmv_ssl.model.malice_module import MaliceEncoder, AliseMMModule, MaliceDecoder
 from torch import nn
 
-from mt_ssl.data.mt_batch import BOutputReprEnco
-
 from mmmv_ssl.data.dataclass import merge2views, BatchMMSits
-from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
-from mmmv_ssl.model.datatypes import EncoderConfig, DecoderConfig, DataInputChannels
+from mmmv_ssl.model.datatypes import EncoderConfig, DecoderConfig, DataInputChannels, BOutputReprEncoder
 from mmmv_ssl.module.dataclass import LatRepr, OutMMAliseF
 
 my_logger = logging.getLogger(__name__)
@@ -101,7 +97,7 @@ class MaliceEncoderAux(MaliceEncoder):
         )
 
 
-    def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
+    def encode_views(self, batch: BatchMMSits, sat: str) -> BOutputReprEncoder:
         """Get two view of one satellite and encode them with encoder"""
         if "1" in sat:
             view1, view2 = batch.sits1a, batch.sits1b
@@ -111,10 +107,10 @@ class MaliceEncoderAux(MaliceEncoder):
         w = view1.w
         merged_views = merge2views(view1, view2)
 
-        out = self.encoder_s1(merged_views, batch.dem) if "1" in sat \
+        out: BOutputReprEncoder = self.encoder_s1(merged_views, batch.dem) if "1" in sat \
             else self.encoder_s2(merged_views, batch.dem)
 
-        mask_tp = repeat(~merged_views.padd_index.bool(), "b t -> b t h w", h=h, w=w)
+        mask_tp = repeat(~out.padd_index.bool(), "b t -> b t h w", h=h, w=w)
         my_logger.debug(f"{sat} repr {out.repr.shape}")
         if isinstance(
                 self.encoder_s1.ubarn.temporal_encoder, nn.TransformerEncoderLayer
@@ -122,20 +118,22 @@ class MaliceEncoderAux(MaliceEncoder):
             padd = None
         else:
             padd = rearrange(mask_tp, "b t h w -> (b h w) t ")
-        return out, padd
+
+        setattr(out, 'padd_index', padd)
+        return out
 
     def forward(self, batch: BatchMMSits) -> tuple[LatRepr, LatRepr, torch.Tensor]:
         """
         Malice Encoder forward step.
         """
-        out_s1, padd_s1 = self.encode_views(batch, sat="s1")
-        out_s2, padd_s2 = self.encode_views(batch, sat="s2")
+        out_s1 = self.encode_views(batch, sat="s1")
+        out_s2 = self.encode_views(batch, sat="s2")
 
         aligned_repr: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
-            padd_s1=padd_s1,
+            padd_s1=out_s1.padd_index,
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
-            padd_s2=padd_s2,
+            padd_s2=out_s2.padd_index,
         )
 
         reprojected, out_emb, mm_embedding = self.compute_mm_embeddings(

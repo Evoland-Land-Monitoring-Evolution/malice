@@ -2,13 +2,12 @@ import logging
 from typing import Literal
 
 import torch
-import torch.nn as nn
+from torch import nn
 from einops import repeat, rearrange
 
 from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.clean_ubarn import CleanUBarn, HSSEncoding
-from mmmv_ssl.model.datatypes import CleanUBarnConfig, UnetConfig, MeteoConfig
-from mt_ssl.data.mt_batch import BInput5d, BOutputReprEnco, BOutputUBarn
+from mmmv_ssl.model.datatypes import CleanUBarnConfig, UnetConfig, MeteoConfig, BOutputUBarn, BOutputReprEncoder
 
 my_logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class MeteoEncoder(nn.Module):
         layers = []
         for i in range(len(width) - 1):
             layers.extend([nn.Linear(width[i], width[i + 1]),
-                       nn.ReLU()])
+                           nn.ReLU()])
         self.encoder = nn.Sequential(*layers)
         self.before_unet = config.concat_before_unet
 
@@ -42,8 +41,6 @@ class MeteoEncoder(nn.Module):
             x = self.encoder(x)
         x = rearrange(x, "( b n ) cd  -> b n cd ", b=b)
         return x
-
-
 
 
 class CleanUBarnAux(CleanUBarn):
@@ -89,7 +86,7 @@ class CleanUBarnAux(CleanUBarn):
 
     def forward(
             self,
-            batch_input: BInput5d,
+            batch_input: BatchOneMod,
             dem: torch.Tensor,
     ) -> BOutputUBarn:
         """
@@ -113,6 +110,8 @@ class CleanUBarnAux(CleanUBarn):
             )
         else:
             raise NotImplementedError
+
+        # We find the first "no data" padding index to attribute dem value to it
         to_replace = (~batch_input.padd_index).sum(1)
 
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
@@ -121,8 +120,9 @@ class CleanUBarnAux(CleanUBarn):
             # my_logger.info(padd_index.shape)
             # my_logger.info(x.shape)
             # my_logger.info(to_replace)
-            padd_index[torch.arange(x.shape[0]).int(), to_replace.int()] = False
+            padd_index[torch.arange(x.shape[0]), to_replace.int()] = False
             x[torch.arange(x.shape[0]), to_replace.int()] = x_dem.squeeze(1).to(x.device)
+            padd = padd_index
             # print(batch_input.padd_index.shape)
             # print(x.shape)
             b, _, _, h, w = x.shape
@@ -143,10 +143,10 @@ class CleanUBarnAux(CleanUBarn):
             if isinstance(self.temporal_encoder, nn.TransformerEncoder):
                 x = rearrange(x, "(b h w ) t c -> b t c h w ", b=b, h=h, w=w)
             my_logger.debug(f"output ubarn clean {x.shape}")
-            return BOutputUBarn(x)
-
+            return BOutputUBarn(x, padd_index=padd)
+        padd_index[torch.arange(x.shape[0]), to_replace.int()] = False
         x[torch.arange(x.shape[0]), to_replace.int()] = x_dem.squeeze(1).to(x.device)
-        return BOutputUBarn(x, None)
+        return BOutputUBarn(x, padd_index=padd_index)
 
 
 class CleanUBarnReprEncoderAux(nn.Module):
@@ -176,11 +176,11 @@ class CleanUBarnReprEncoderAux(nn.Module):
             self,
             batch_input: BatchOneMod,
             dem: torch.Tensor,
-    ) -> BOutputReprEnco:
+    ) -> BOutputReprEncoder:
         batch_output = self.ubarn(batch_input, dem=dem)
 
-        return BOutputReprEnco(
+        return BOutputReprEncoder(
             repr=batch_output.output,
             doy=batch_input.input_doy,
-            attn_ubarn=batch_output.attn,
+            padd_index=batch_output.padd_index,
         )
