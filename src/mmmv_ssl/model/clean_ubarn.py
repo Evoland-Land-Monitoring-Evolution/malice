@@ -12,12 +12,13 @@ import torch
 from torch import nn
 from einops import rearrange, repeat
 
-from mt_ssl.data.mt_batch import BInput5d, BOutputUBarn
 from mt_ssl.model.attention import MultiHeadAttention
 from mt_ssl.model.convolutionalblock import ConvBlock
 from mt_ssl.model.norm import AdaptedLayerNorm
 from mt_ssl.model.utae_unet import Unet
-from mmmv_ssl.model.datatypes import UnetConfig
+
+from mmmv_ssl.data.dataclass import BatchOneMod
+from mmmv_ssl.model.datatypes import UnetConfig, BOutputUBarn
 from mmmv_ssl.model.encoding import PositionalEncoder
 
 my_logger = logging.getLogger(__name__)
@@ -232,7 +233,7 @@ class CleanUBarn(nn.Module):
 
     def forward(
             self,
-            batch_input: BInput5d,
+            batch_input: BatchOneMod,
     ) -> BOutputUBarn:
         """
         Forward pass

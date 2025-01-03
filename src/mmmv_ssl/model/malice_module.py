@@ -12,12 +12,10 @@ import torch
 from einops import rearrange, repeat
 from torch import nn
 
-from mt_ssl.data.mt_batch import BOutputReprEnco
-
 from mmmv_ssl.data.dataclass import merge2views, BatchMMSits, BatchOneMod
 from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
-from mmmv_ssl.model.datatypes import EncoderConfig, DecoderConfig, DataInputChannels
+from mmmv_ssl.model.datatypes import EncoderConfig, DecoderConfig, DataInputChannels, BOutputReprEncoder
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.projector import IdentityProj, AliseProj
 from mmmv_ssl.model.query_utils import TempMetaQuery
@@ -159,7 +157,7 @@ class MaliceEncoder(nn.Module):
 
         return reprojected, out_emb, mm_embedding
 
-    def encode_views(self, batch: BatchMMSits, sat: str) -> tuple[BOutputReprEnco, torch.Tensor]:
+    def encode_views(self, batch: BatchMMSits, sat: str) -> BOutputReprEncoder:
         """Get two view of one satellite and encode them with encoder"""
         if "1" in sat:
             view1, view2 = batch.sits1a, batch.sits1b
@@ -180,20 +178,21 @@ class MaliceEncoder(nn.Module):
             padd = None
         else:
             padd = rearrange(mask_tp, "b t h w -> (b h w) t ")
-        return out, padd
+        setattr(out, 'padd_index', padd)
+        return out
 
     def forward(self, batch: BatchMMSits) -> tuple[LatRepr, LatRepr, torch.Tensor]:
         """
         Malice Encoder forward step.
         """
-        out_s1, padd_s1 = self.encode_views(batch, sat="s1")
-        out_s2, padd_s2 = self.encode_views(batch, sat="s2")
+        out_s1 = self.encode_views(batch, sat="s1")
+        out_s2 = self.encode_views(batch, sat="s2")
 
         aligned_repr: OutTempProjForward = self.common_temp_proj(
             sits_s1=rearrange(out_s1.repr, "b t c h w -> (b h w ) t c"),
-            padd_s1=padd_s1,
+            padd_s1=out_s1.padd_index,
             sits_s2=rearrange(out_s2.repr, "b t c h w -> (b h w) t c"),
-            padd_s2=padd_s2,
+            padd_s2=out_s2.padd_index,
         )
 
         reprojected, out_emb, mm_embedding = self.compute_mm_embeddings(
