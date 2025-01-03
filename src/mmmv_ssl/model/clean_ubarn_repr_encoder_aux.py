@@ -98,7 +98,7 @@ class CleanUBarnAux(CleanUBarn):
 
         padd_index = batch_input.padd_index
 
-        # We encode dem abd expand it to two views
+        # We encode dem and expand it to two views
         x_dem = self.encoder_dem(dem)
         x_dem = torch.cat((x_dem, x_dem), dim=0)
 
@@ -118,8 +118,11 @@ class CleanUBarnAux(CleanUBarn):
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
             x = x + doy_encoding
-            padd_index[torch.arange(x.shape[0]), to_replace] = False
-            x[torch.arange(x.shape[0]), to_replace] = x_dem.squeeze(1)
+            # my_logger.info(padd_index.shape)
+            # my_logger.info(x.shape)
+            # my_logger.info(to_replace)
+            padd_index[torch.arange(x.shape[0]).int(), to_replace.int()] = False
+            x[torch.arange(x.shape[0]), to_replace.int()] = x_dem.squeeze(1).to(x.device)
             # print(batch_input.padd_index.shape)
             # print(x.shape)
             b, _, _, h, w = x.shape
@@ -142,7 +145,7 @@ class CleanUBarnAux(CleanUBarn):
             my_logger.debug(f"output ubarn clean {x.shape}")
             return BOutputUBarn(x)
 
-        x[torch.arange(x.shape[0]), to_replace] = x_dem.squeeze(1)
+        x[torch.arange(x.shape[0]), to_replace.int()] = x_dem.squeeze(1).to(x.device)
         return BOutputUBarn(x, None)
 
 
