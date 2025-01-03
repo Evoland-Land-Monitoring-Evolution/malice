@@ -64,6 +64,7 @@ class MMMaskDataModule(pl.LightningDataModule):
             shuffle=True,
             pin_memory=True,
             collate_fn=collate_fn_mm_dataset,
+            drop_last=True
         )
 
     def val_dataloader(self) -> EVAL_DATALOADERS:
@@ -74,6 +75,7 @@ class MMMaskDataModule(pl.LightningDataModule):
             shuffle=False,
             pin_memory=True,
             collate_fn=collate_fn_mm_dataset,
+            drop_last=True
         )
 
     def test_dataloader(self) -> EVAL_DATALOADERS:
@@ -84,6 +86,7 @@ class MMMaskDataModule(pl.LightningDataModule):
             shuffle=False,
             pin_memory=True,
             collate_fn=collate_fn_mm_dataset,
+            drop_last=True
         )
 
     def on_after_batch_transfer(self, batch: BatchMMSits,
