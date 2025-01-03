@@ -70,7 +70,7 @@ class SITSOneMod:
         )
 
     def remove_padded(self, max_len: int):
-        if self.sits.shape[0] > max_len:
+        if self.sits.shape[0] >= max_len:
             self.sits = self.sits[:max_len]
             self.input_doy = self.input_doy[:max_len]
             if self.true_doy is not None:
@@ -83,7 +83,7 @@ class SITSOneMod:
                 self.meteo = self.meteo[:max_len]
             return self
         else:
-            return self.apply_padding(max_len)
+            return self.apply_padding(self.sits.shape[0]+1)
 
 
 @dataclass
