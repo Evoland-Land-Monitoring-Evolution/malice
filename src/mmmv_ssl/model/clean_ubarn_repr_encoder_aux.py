@@ -97,7 +97,9 @@ class CleanUBarnAux(CleanUBarn):
 
         # We encode dem and expand it to two views
         x_dem = self.encoder_dem(dem)
-        x_dem = torch.cat((x_dem, x_dem), dim=0)
+        if batch_input.sits.shape[0] / dem.shape[0] == 2:
+            # We keep this option for inference when we don't have views
+            x_dem = torch.cat((x_dem, x_dem), dim=0)
 
         meteo_encoded = self.encoder_meteo(
             batch_input.meteo, mask=padd_index
@@ -117,14 +119,9 @@ class CleanUBarnAux(CleanUBarn):
         my_logger.debug(f"x{x.shape} doy {doy_encoding.shape}")
         if self.temporal_encoder is not None:
             x = x + doy_encoding
-            # my_logger.info(padd_index.shape)
-            # my_logger.info(x.shape)
-            # my_logger.info(to_replace)
             padd_index[torch.arange(x.shape[0]), to_replace.int()] = False
             x[torch.arange(x.shape[0]), to_replace.int()] = x_dem.squeeze(1).to(x.device)
             padd = padd_index
-            # print(batch_input.padd_index.shape)
-            # print(x.shape)
             b, _, _, h, w = x.shape
             if isinstance(self.temporal_encoder, nn.TransformerEncoder):
                 padd_index = repeat(
