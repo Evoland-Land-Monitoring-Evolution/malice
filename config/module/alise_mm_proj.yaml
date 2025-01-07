@@ -21,9 +21,9 @@ model:
           padding_mode: "reflect"
           decoding_norm: "batch"
           return_maps: false
-          str_conv_k: 4
+          str_conv_k: 2
           str_conv_s: 2
-          str_conv_p: 1
+          str_conv_p: 0
           border_size: 0
           skip_conv_norm: "batch"
     encoder_s2:
@@ -44,9 +44,9 @@ model:
           padding_mode: "reflect"
           decoding_norm: "batch"
           return_maps: false
-          str_conv_k: 4
+          str_conv_k: 2
           str_conv_s: 2
-          str_conv_p: 1
+          str_conv_p: 0
           border_size: 0
           skip_conv_norm: "batch"
     common_temp_proj:
