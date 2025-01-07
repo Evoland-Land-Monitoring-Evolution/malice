@@ -101,9 +101,9 @@ class BatchOneMod:
         self,
         sits: Tensor,
         input_doy: Tensor,
-        true_doy: Tensor,
-        meteo: Tensor = None,
-        padd_index: Tensor = None,
+        true_doy: Tensor | None = None,
+        meteo: Tensor | None = None,
+        padd_index: Tensor | None = None,
         mask: Tensor | None = None,
     ):
         self.true_doy = true_doy

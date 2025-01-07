@@ -3,8 +3,9 @@ from pathlib import Path
 
 import torch
 
-from mmmv_ssl.data.dataclass import BatchMMSits, BatchOneMod
+from mmmv_ssl.data.dataclass import BatchMMSits
 from mmmv_ssl.model.malice_module import AliseMMModule
+from mmmv_ssl.model.malice_module_aux import AliseMMModuleAux
 from mmmv_ssl.model.projector import IdentityProj
 from mmmv_ssl.module.dataclass import (
     OutMMAliseF,
@@ -22,7 +23,7 @@ class AliseMM(TemplateModule):
 
     def __init__(
             self,
-            model: AliseMMModule,
+            model: AliseMMModule | AliseMMModuleAux,
             weights: WeightClass,
             lr: float,
             same_mod_loss: bool = False
