@@ -35,7 +35,7 @@ class PretrainingMMMaskDataset(Dataset):
             extract_true_doy: bool = False,
     ):
         """
-        Dataclass for Malice pretraining dataset
+        Malice pretraining dataset
         """
         super().__init__()
 
@@ -118,9 +118,7 @@ class PretrainingMMMaskDataset(Dataset):
 
 class PretrainingMMMaskDatasetAux(PretrainingMMMaskDataset):
     """
-    Getitem for multitask pre-training with aux data.
-    Generates 2 views for each modality
-    interpolItem.sits_in.sits shape is f,t,c,h,w
+    Malice Aux pretraining dataset
     """
 
     def __init__(
