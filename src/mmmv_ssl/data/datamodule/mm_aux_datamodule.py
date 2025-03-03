@@ -1,19 +1,22 @@
+"""
+Malice datamodule
+"""
+
 import logging
 
 from hydra.utils import instantiate
-
-from mmmv_ssl.data.datamodule.mm_datamodule import MMMaskDataModule
-from mt_ssl.data.transform import apply_transform_basic
 from openeo_mmdc.dataset.to_tensor import load_all_transforms
 
 from mmmv_ssl.data.dataclass import BatchMMSits
+from mmmv_ssl.data.datamodule.mm_datamodule import MMMaskDataModule
+from mmmv_ssl.data.datamodule.utils import apply_transform_basic
 from mmmv_ssl.data.dataset.pretraining_mm_mask import PretrainingMMMaskDatasetAux
-
 
 my_logger = logging.getLogger(__name__)
 
 
 class MMMaskDataModuleAux(MMMaskDataModule):
+    """Malice aux datamodule"""
 
     def __init__(
             self,
@@ -28,6 +31,7 @@ class MMMaskDataModuleAux(MMMaskDataModule):
                                                  modalities=["s1_asc", "s2", "agera5", "dem"])
 
     def setup(self, stage: str) -> None:
+        """Setup"""
         if stage == "fit":
             self.data_train: PretrainingMMMaskDatasetAux = instantiate(
                 self.train_dataset,
@@ -45,6 +49,9 @@ class MMMaskDataModuleAux(MMMaskDataModule):
 
     def on_after_batch_transfer(self, batch: BatchMMSits,
                                 dataloader_idx: int) -> BatchMMSits:
+        """
+        Normalize on batch transfer.
+        """
         # print("in datamodule", batch.sits2a.sits[0, 0, 0, ...])
         sits1a = apply_transform_basic(
             batch.sits1a.sits, transform=self.all_transform.s1_asc.transform)
