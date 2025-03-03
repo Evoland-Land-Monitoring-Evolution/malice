@@ -1,3 +1,7 @@
+"""
+Functions to collate the elements of the batch
+"""
+
 from collections.abc import Iterable
 
 import torch
@@ -11,14 +15,18 @@ from mmmv_ssl.data.dataclass import (
 
 
 def collate_fn_mm_dataset(batch: Iterable[MMSITS]) -> BatchMMSits:
-    # print(*[b.sits1a.sits.shape for b in batch])
-    # print(*[(~b.sits1a.padd_mask).sum() for b in batch])
-    # print((*[(~b.sits1a.padd_mask).sum() for b in batch], *[(~b.sits1b.padd_mask).sum() for b in batch], *[(~b.sits2a.padd_mask).sum() for b in batch], *[(~b.sits2b.padd_mask).sum() for b in batch]))
-    # print(max(*[(~b.sits1a.padd_mask).sum() for b in batch], *[(~b.sits1b.padd_mask).sum() for b in batch], *[(~b.sits2a.padd_mask).sum() for b in batch], *[(~b.sits2b.padd_mask).sum() for b in batch]))
+    """
+    Collate elements for each mod view.
+    Also remove unnecessary padding
+    (as we padd to len=60 by default at the beginning)
+    """
+    # Compute get length of the longest view
     max_len_batch = max(*[(~b.sits1a.padd_mask).sum() for b in batch],
                         *[(~b.sits1b.padd_mask).sum() for b in batch],
                         *[(~b.sits2a.padd_mask).sum() for b in batch],
                         *[(~b.sits2b.padd_mask).sum() for b in batch])
+    # If we have DEM in modalities, add one more padding,
+    # as DEM will be added at the end of the sits later
     if batch[0].dem is not None:
         max_len_batch += 1
     sits1a = collate_one_mode([b.sits1a.remove_padded(max_len_batch) for b in batch])
@@ -34,6 +42,10 @@ def collate_fn_mm_dataset(batch: Iterable[MMSITS]) -> BatchMMSits:
 
 
 def collate_one_mode(batch: Iterable[SITSOneMod]) -> BatchOneMod:
+    """
+    Collate all the elements of one mode:
+    SITS, DOY, mask, meteo, padding
+    """
     b_sits = torch.stack([b.sits for b in batch])
     b_doy = torch.stack([b.input_doy for b in batch])
 
