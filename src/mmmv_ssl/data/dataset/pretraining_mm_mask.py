@@ -1,28 +1,23 @@
-from dataclasses import dataclass
-from typing import Any, Literal
+# pylint: disable=invalid-name
+"""
+Two datamodules for Malice:
+With and without aux data
+"""
+
 import logging
+from typing import Any, Literal
+
 import torch
 from einops import rearrange
-from mmmv_ssl.data.dataset.load_tensor import create_mmcd_tensor_df, load_mmdc_sits
-from torch.utils.data import Dataset
 from openeo_mmdc.dataset.dataclass import (
     MMDC_MAXLEN,
 )
+from torch.utils.data import Dataset
 
 from mmmv_ssl.data.dataclass import MMSITS, SITSOneMod, ItemTensorMMDC
+from mmmv_ssl.data.dataset.load_tensor import create_mmcd_tensor_df, load_mmdc_sits
 
 my_logger = logging.getLogger(__name__)
-
-
-@dataclass
-class ConfigPretrainingMMYearDataset:
-    directory: str
-    max_len: int
-    path_dataset_info: str
-    crop_size: int
-    crop_type: Literal["Center", "Random"] = "Center"
-    transform: Any = None
-    dataset_type: Literal["train", "val", "test"] = "test"
 
 
 class PretrainingMMMaskDataset(Dataset):
@@ -34,17 +29,13 @@ class PretrainingMMMaskDataset(Dataset):
             modalities: list[Literal["s2", "s1_asc", "s1_desc", "dem"]] = None,
             path_dir_csv: str | None = None,
             s2_max_ccp: None | float = None,
-            crop_size=64,
-            crop_type="Center",
-            dataset_type="test",
+            crop_size: int = 64,
+            crop_type: str = "Center",
+            dataset_type: str = "test",
             extract_true_doy: bool = False,
     ):
         """
-
-        Args:
-            directory ():  directory where the .nc images are located
-            max_len (): the maximum number of date to select in a SITS
-            split_in_two (): if set to True input data time series will be split in two.
+        Dataclass for Malice pretraining dataset
         """
         super().__init__()
 
@@ -70,16 +61,14 @@ class PretrainingMMMaskDataset(Dataset):
         self.path_dir_csv = path_dir_csv
 
     def __len__(self):
+        """Dataset len"""
         return len(self.c_mmdc_df.s2)
 
     def __getitem__(self, item) -> MMSITS:
         """
-        Getitem for multitask pre-training
-        Args:
-            item ():
-
-        Returns:
-        interpolItem.sits_in.sits shae is f,t,c,h,w
+        Getitem for multitask pre-training.
+        Generates 2 views for each modality
+        interpolItem.sits_in.sits shape is f,t,c,h,w
         """
         out_item: ItemTensorMMDC = self.mmdc_sits(item, opt="s1s2")  # t,c,h,w
         mask_s1 = out_item.s1_asc.mask.mask_nan
@@ -95,7 +84,7 @@ class PretrainingMMMaskDataset(Dataset):
                             "c t h w-> t c h w")[:, [0, 1], ...]
         ratio = sits_s1[:, [0], ...] / sits_s1[:, [1], ...]
         sits_s1 = torch.log(
-            torch.cat([sits_s1[:, [0, 1], ...], ratio], dim=1))  # first two bands vv,vh then incidence angle
+            torch.cat([sits_s1[:, [0, 1], ...], ratio], dim=1))  # first two bands vh, vv then ratio
         s1 = SITSOneMod(
             sits=sits_s1,
             input_doy=out_item.s1_asc.doy,
@@ -121,13 +110,19 @@ class PretrainingMMMaskDataset(Dataset):
             crop_type=self.crop_type,
             max_len=MMDC_MAXLEN(
                 s2=self.max_len
-            ),  # TODO imporve when working with multimodal data
+            ),
             opt=opt,
             seed=seed,
         )
 
 
 class PretrainingMMMaskDatasetAux(PretrainingMMMaskDataset):
+    """
+    Getitem for multitask pre-training with aux data.
+    Generates 2 views for each modality
+    interpolItem.sits_in.sits shape is f,t,c,h,w
+    """
+
     def __init__(
             self,
             directory: str,
@@ -161,14 +156,11 @@ class PretrainingMMMaskDatasetAux(PretrainingMMMaskDataset):
                          extract_true_doy)
         self.days_meteo = days_meteo
 
-    def __getitem__(self, item) -> MMSITS:
+    def __getitem__(self, item: Any) -> MMSITS:
         """
         Getitem for multitask pre-training
-        Args:
-            item ():
 
-        Returns:
-        interpolItem.sits_in.sits shae is f,t,c,h,w
+        interpolItem.sits_in.sits shape is f,t,c,h,w
         """
         out_item: ItemTensorMMDC = self.mmdc_sits(item, opt="aux")  # t,c,h,w
         mask_s1 = out_item.s1_asc.mask.mask_nan
@@ -202,12 +194,7 @@ class PretrainingMMMaskDatasetAux(PretrainingMMMaskDataset):
 def split_one_mod(one_mode: SITSOneMod,
                   max_len: int) -> tuple[SITSOneMod, SITSOneMod]:
     """
-    Randomly split SITS into two non overlapping SITS.
-    Args:
-        one_mode ():
-
-    Returns:
-
+    Randomly split SITS into two non overlapping SITS of same size
     """
     T = one_mode.sits.shape[0]
     idx = torch.randperm(T)  # idx all elements
@@ -223,16 +210,16 @@ def split_one_mod(one_mode: SITSOneMod,
     one_mod_v1 = SITSOneMod(
         sits=one_mode.sits[idx_v1, ...],
         mask=one_mode.mask[idx_v1, ...],
-        true_doy=None,
+        true_doy=one_mode.true_doy[idx_v1, ...] if one_mode.true_doy is not None else None,
         input_doy=one_mode.input_doy[idx_v1, ...],
-        meteo=one_mode.meteo[idx_v1, ...],
+        meteo=one_mode.meteo[idx_v1, ...] if one_mode.meteo is not None else None
     )
     one_mod_v2 = SITSOneMod(
         sits=one_mode.sits[idx_v2, ...],
         mask=one_mode.mask[idx_v2, ...],
-        true_doy=None,
+        true_doy=one_mode.true_doy[idx_v2, ...] if one_mode.true_doy is not None else None,
         input_doy=one_mode.input_doy[idx_v2],
-        meteo=one_mode.meteo[idx_v2, ...]
+        meteo=one_mode.meteo[idx_v2, ...] if one_mode.meteo is not None else None
     )
     return one_mod_v1.apply_padding(max_len=max_len), one_mod_v2.apply_padding(
         max_len=max_len)
