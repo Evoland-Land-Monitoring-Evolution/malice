@@ -9,13 +9,12 @@ import logging
 from typing import Literal
 
 import torch
-from torch import nn
 from einops import rearrange, repeat
-
 from mt_ssl.model.attention import MultiHeadAttention
 from mt_ssl.model.convolutionalblock import ConvBlock
 from mt_ssl.model.norm import AdaptedLayerNorm
 from mt_ssl.model.utae_unet import Unet
+from torch import nn
 
 from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.datatypes import UnetConfig, BOutputUBarn
@@ -58,7 +57,6 @@ class EncoderTransformerLayer2(nn.Module):
             batch: torch.Tensor,
             src_mask: torch.Tensor | None = None,
             key_padding_mask: torch.Tensor | None = None,
-            src_key_padding_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch]:
         """
 
@@ -203,7 +201,6 @@ class CleanUBarn(nn.Module):
             pe_cst=pe_cst,
         )
 
-
         if use_transformer:
             if use_pytorch_transformer:
                 encoder_layer = nn.TransformerEncoderLayer(
@@ -328,11 +325,14 @@ class HSSEncoding(nn.Module):
             border_size=model_config.border_size,
             skip_conv_norm=model_config.skip_conv_norm)
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor,
+                mask: torch.Tensor | None = None
+                ) -> torch.Tensor:
         """Forward pass"""
         b, n, _, h, w = x.shape
         x = rearrange(x, "b n c h w -> (b n ) c h w")
         if mask is not None:
+            # We ignore the padded values
             mask = rearrange(mask, "b n -> (b n )")
             x = self.my_model(x[~mask])
             x_res = torch.zeros(b * n, x.shape[1], h, w).to(x.device)

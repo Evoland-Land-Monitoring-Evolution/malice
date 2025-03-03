@@ -1,6 +1,7 @@
+"""Entry for Ubarn encoder"""
 import logging
 
-import torch.nn as nn
+from torch import nn
 
 from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.clean_ubarn import CleanUBarn
@@ -10,6 +11,8 @@ my_logger = logging.getLogger(__name__)
 
 
 class CleanUBarnReprEncoder(nn.Module):
+    """Entry for Ubarn encoder"""
+
     def __init__(
             self,
             ubarn_config: CleanUBarnConfig,
@@ -36,6 +39,7 @@ class CleanUBarnReprEncoder(nn.Module):
             self,
             batch_input: BatchOneMod,
     ) -> BOutputReprEncoder:
+        """Forward pass"""
         batch_output = self.ubarn(batch_input)
 
         return BOutputReprEncoder(

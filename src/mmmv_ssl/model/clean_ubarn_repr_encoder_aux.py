@@ -1,18 +1,24 @@
+# pylint: disable=invalid-name
+"""Ubarn Aux encoder"""
+
 import logging
 from typing import Literal
 
 import torch
-from torch import nn
 from einops import repeat, rearrange
+from torch import nn
 
 from mmmv_ssl.data.dataclass import BatchOneMod
 from mmmv_ssl.model.clean_ubarn import CleanUBarn, HSSEncoding
-from mmmv_ssl.model.datatypes import CleanUBarnConfig, UnetConfig, MeteoConfig, BOutputUBarn, BOutputReprEncoder
+from mmmv_ssl.model.datatypes import \
+    CleanUBarnConfig, UnetConfig, MeteoConfig, BOutputUBarn, BOutputReprEncoder
 
 my_logger = logging.getLogger(__name__)
 
 
 class MeteoEncoder(nn.Module):
+    """MLP encoder for meteo vectors"""
+
     def __init__(
             self,
             config: MeteoConfig,
@@ -27,11 +33,15 @@ class MeteoEncoder(nn.Module):
         self.encoder = nn.Sequential(*layers)
         self.before_unet = config.concat_before_unet
 
-    def forward(self, x: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(self,
+                x: torch.Tensor,
+                mask: torch.Tensor
+                ) -> torch.Tensor:
         """Forward pass for meteo data. MLP layers"""
-        b, n, c, d = x.shape
+        b, n, _, _ = x.shape
         x = rearrange(x, "b n c d -> (b n) (c d) ")
         if mask is not None:
+            # we ignore padded values
             mask = rearrange(mask, "b n -> (b n )")
             x = self.encoder(x[~mask])
             x_res = torch.zeros(b * n, x.shape[1]).to(x.device)
@@ -45,7 +55,7 @@ class MeteoEncoder(nn.Module):
 
 class CleanUBarnAux(CleanUBarn):
     """
-    Clean UBarn module for S1/S2 encoders
+    Clean UBarn Aux module to encode S1/S2
     """
 
     def __init__(
@@ -60,7 +70,6 @@ class CleanUBarnAux(CleanUBarn):
             nhead: int = 4,
             attn_dropout: float = 0.1,
             encoding_config: UnetConfig = UnetConfig(),
-            # max_len_pe: int = 3000,
             pe_cst: int = 10000,
             use_transformer: bool = True,
             use_pytorch_transformer: bool = True,
@@ -79,9 +88,11 @@ class CleanUBarnAux(CleanUBarn):
                          use_transformer,
                          use_pytorch_transformer)
 
-        # dem encoder is be attributed in MALICEEncodermodule as it is common for S1 and S2 encoder
+        # dem encoder is instanced in MALICE Encoder module,
+        # as it is common for S1 and S2 encoder
         self.encoder_dem: HSSEncoding  # TODO do smth better
 
+        # for the moment meteo encoder is different for S1 and S2
         self.encoder_meteo: MeteoEncoder
 
     def forward(
@@ -147,6 +158,7 @@ class CleanUBarnAux(CleanUBarn):
 
 
 class CleanUBarnReprEncoderAux(nn.Module):
+    """Entry for Ubarn aux encoder"""
     def __init__(
             self,
             ubarn_config: CleanUBarnConfig,
@@ -174,6 +186,7 @@ class CleanUBarnReprEncoderAux(nn.Module):
             batch_input: BatchOneMod,
             dem: torch.Tensor,
     ) -> BOutputReprEncoder:
+        """Forward pass"""
         batch_output = self.ubarn(batch_input, dem=dem)
 
         return BOutputReprEncoder(
