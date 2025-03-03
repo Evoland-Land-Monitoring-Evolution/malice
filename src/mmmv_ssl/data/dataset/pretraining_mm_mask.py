@@ -1,6 +1,6 @@
 # pylint: disable=invalid-name
 """
-Two datamodules for Malice:
+Two datasets for Malice:
 With and without aux data
 """
 
