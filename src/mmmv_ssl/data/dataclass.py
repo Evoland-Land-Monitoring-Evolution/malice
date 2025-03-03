@@ -1,5 +1,8 @@
-from dataclasses import dataclass
+# pylint: disable=invalid-name
+"""Different dataclasses for the input data"""
+
 import logging
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -7,12 +10,13 @@ import torch.nn.functional as F
 from openeo_mmdc.dataset.dataclass import MaskMod
 from openeo_mmdc.dataset.padding import apply_padding
 from torch import Tensor
-my_logger=logging.getLogger(__name__)
 
+my_logger = logging.getLogger(__name__)
 
 
 @dataclass
 class OneMod:
+    """One modality dataclass"""
     sits: Tensor
     doy: Tensor | None
     mask: MaskMod | None = MaskMod()
@@ -23,6 +27,7 @@ class OneMod:
 
 @dataclass
 class ItemTensorMMDC:
+    """Batch element dataclass"""
     s2: OneMod | None = None
     s1_asc: OneMod | None = None
     s1_desc: OneMod | None = None
@@ -32,6 +37,7 @@ class ItemTensorMMDC:
 
 @dataclass
 class SITSOneMod:
+    """One modality dataclass before collate_fn"""
     sits: Tensor
     input_doy: Tensor
     meteo: Tensor | None = None
@@ -39,8 +45,8 @@ class SITSOneMod:
     padd_mask: Tensor | None = None
     mask: Tensor | None = None
 
-    def apply_padding(self, max_len: int, allow_padd=True):
-        # sits = rearrange(self.sits, "t c h w -> t c h w")
+    def apply_padding(self, max_len: int, allow_padd: bool = True):
+        """Apply padding"""
         t = self.sits.shape[0]
         sits, doy, padd_index = apply_padding(allow_padd, max_len, t,
                                               self.sits, self.input_doy)
@@ -70,6 +76,7 @@ class SITSOneMod:
         )
 
     def remove_padded(self, max_len: int):
+        """Remove extra padding"""
         if self.sits.shape[0] >= max_len:
             self.sits = self.sits[:max_len]
             self.input_doy = self.input_doy[:max_len]
@@ -82,12 +89,12 @@ class SITSOneMod:
             if self.meteo is not None:
                 self.meteo = self.meteo[:max_len]
             return self
-        else:
-            return self.apply_padding(self.sits.shape[0]+1)
+        return self.apply_padding(self.sits.shape[0] + 1)
 
 
 @dataclass
 class MMSITS:
+    """Batch dataclass before collate_fn"""
     sits1a: SITSOneMod
     sits1b: SITSOneMod
     sits2a: SITSOneMod
@@ -96,15 +103,15 @@ class MMSITS:
 
 
 class BatchOneMod:
-
+    """One modality in batch"""
     def __init__(
-        self,
-        sits: Tensor,
-        input_doy: Tensor,
-        true_doy: Tensor | None = None,
-        meteo: Tensor | None = None,
-        padd_index: Tensor | None = None,
-        mask: Tensor | None = None,
+            self,
+            sits: Tensor,
+            input_doy: Tensor,
+            true_doy: Tensor | None = None,
+            meteo: Tensor | None = None,
+            padd_index: Tensor | None = None,
+            mask: Tensor | None = None,
     ):
         self.true_doy = true_doy
         assert len(sits.shape) == 5, f"Incorrect sits shape {sits.shape}"
@@ -126,6 +133,7 @@ class BatchOneMod:
         self.w = sits.shape[4]
 
     def pin_memory(self):
+        """Enable pin memory"""
         self.sits = self.sits.pin_memory()
         self.input_doy = self.input_doy.pin_memory()
         if self.true_doy is not None:
@@ -139,6 +147,7 @@ class BatchOneMod:
         return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
+        """To device"""
         self.sits = self.sits.to(device=device, dtype=dtype)
         self.input_doy = self.input_doy.to(device, dtype=dtype)
         if self.true_doy is not None:
@@ -154,6 +163,7 @@ class BatchOneMod:
 
 @dataclass
 class BatchMMSits:
+    """Batch dataclass after collate_fn"""
     sits1a: BatchOneMod
     sits1b: BatchOneMod
     sits2a: BatchOneMod
@@ -161,6 +171,7 @@ class BatchMMSits:
     dem: torch.Tensor | None = None
 
     def pin_memory(self):
+        """Enable pin memory"""
         self.sits1a = self.sits1a.pin_memory()
         self.sits2a = self.sits2a.pin_memory()
         self.sits1b = self.sits1b.pin_memory()
@@ -169,6 +180,7 @@ class BatchMMSits:
         return self
 
     def to(self, device: torch.device | None, dtype: torch.dtype | None):
+        """To device"""
         self.sits1a = self.sits1a.to(device=device, dtype=dtype)
         self.sits1b = self.sits1b.to(device=device, dtype=dtype)
         self.sits2a = self.sits2a.to(device=device, dtype=dtype)
@@ -179,16 +191,18 @@ class BatchMMSits:
 
 @dataclass
 class MMChannels:
+    """Input modality channels"""
     s1_channels: int = 3
     s2_channels: int = 10
     s1_aux_channels: int = 1
     s2_aux_channels: int = 1
     s1_meteo_channels: int = 8
     s2_meteo_channels: int = 8
-    dem_channels: int|None = None
+    dem_channels: int | None = None
 
 
 def merge2views(viewa: BatchOneMod, viewb: BatchOneMod) -> BatchOneMod:
+    """Merge 2 views in a batch"""
     sits = torch.cat([viewa.sits, viewb.sits])
     input_doy = torch.cat([viewa.input_doy, viewb.input_doy])
     if viewa.true_doy is not None:
