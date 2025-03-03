@@ -8,8 +8,9 @@ import logging
 
 import numpy as np
 import torch
-from torch import nn
 from einops import rearrange, repeat
+from torch import nn
+
 from mmmv_ssl.model.dataclass import OutTempProjForward
 
 my_logger = logging.getLogger(__name__)

@@ -35,5 +35,3 @@ def build_encoder(
         temp_proj_one_mod=temp_proj,
         query=query
     )
-
-
