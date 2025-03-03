@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import torch
 
+
 @dataclass
 class OutUTAEForward:
     """ UTAE outputs """

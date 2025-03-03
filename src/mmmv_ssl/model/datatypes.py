@@ -36,6 +36,7 @@ class MeteoConfig:
     # if we concatenate encoded meteo to images before or after we pass them to unet
     concat_before_unet: bool = True
 
+
 @dataclass
 class CommonTempProjConfig:
     """
@@ -136,6 +137,9 @@ class DataInputChannels:
 
 @dataclass
 class BOutputUBarn:
+    """
+    Ubarn output
+    """
     output: torch.Tensor
     padd_index: torch.Tensor | None = None
 
