@@ -15,7 +15,8 @@ from torch import nn
 from mmmv_ssl.data.dataclass import merge2views, BatchMMSits, BatchOneMod
 from mmmv_ssl.model.clean_ubarn_repr_encoder import CleanUBarnReprEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
-from mmmv_ssl.model.datatypes import EncoderConfig, DecoderConfig, DataInputChannels, BOutputReprEncoder
+from mmmv_ssl.model.datatypes import \
+    EncoderConfig, DecoderConfig, DataInputChannels, BOutputReprEncoder
 from mmmv_ssl.model.decodeur import MetaDecoder
 from mmmv_ssl.model.projector import IdentityProj, AliseProj
 from mmmv_ssl.model.query_utils import TempMetaQuery

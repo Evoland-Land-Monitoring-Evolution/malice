@@ -9,14 +9,15 @@ import logging
 
 import torch
 from einops import rearrange, repeat
-from mmmv_ssl.model.clean_ubarn import HSSEncoding
-from mmmv_ssl.model.clean_ubarn_repr_encoder_aux import CleanUBarnReprEncoderAux, MeteoEncoder
-from mmmv_ssl.model.malice_module import MaliceEncoder, AliseMMModule, MaliceDecoder
 from torch import nn
 
 from mmmv_ssl.data.dataclass import merge2views, BatchMMSits
+from mmmv_ssl.model.clean_ubarn import HSSEncoding
+from mmmv_ssl.model.clean_ubarn_repr_encoder_aux import CleanUBarnReprEncoderAux, MeteoEncoder
 from mmmv_ssl.model.dataclass import OutTempProjForward
-from mmmv_ssl.model.datatypes import EncoderConfig, DecoderConfig, DataInputChannels, BOutputReprEncoder
+from mmmv_ssl.model.datatypes import \
+    EncoderConfig, DecoderConfig, DataInputChannels, BOutputReprEncoder
+from mmmv_ssl.model.malice_module import MaliceEncoder, AliseMMModule, MaliceDecoder
 from mmmv_ssl.module.dataclass import LatRepr, OutMMAliseF
 
 my_logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ my_logger = logging.getLogger(__name__)
 
 class AliseMMModuleAux(AliseMMModule):
     """
-    Malice Module composed of encoder and decoder
+    Malice Aux Module composed of encoder and decoder
     """
 
     def __init__(self,
@@ -95,7 +96,6 @@ class MaliceEncoderAux(MaliceEncoder):
             config=encoder.encoder_meteo,
             input_channels=input_channels.s1_meteo
         )
-
 
     def encode_views(self, batch: BatchMMSits, sat: str) -> BOutputReprEncoder:
         """Get two view of one satellite and encode them with encoder"""
