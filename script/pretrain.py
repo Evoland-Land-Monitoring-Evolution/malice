@@ -1,6 +1,6 @@
+"""Main model pretrain function"""
 import logging
 import signal
-from pathlib import Path
 
 import hydra
 import torch
@@ -9,7 +9,7 @@ from lightning.pytorch import seed_everything
 from lightning.pytorch.plugins.environments import SLURMEnvironment
 from mt_ssl.logs.logs import log_hyperparameters
 from mt_ssl.optimizer.mixed_precision import CustomMixedPrecisionPlugin
-from mt_ssl.utils.open import find_file, find_good_ckpt, open_yaml
+from mt_ssl.utils.open import open_yaml
 from omegaconf import DictConfig
 
 from mmmv_ssl.data.datamodule.mm_datamodule import MMMaskDataModule
@@ -18,93 +18,86 @@ from mmmv_ssl.module.alise_mm import AliseMM
 my_logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../config/", config_name="pretrain.yaml")
-def main(myconfig: DictConfig):
-    if myconfig.verbose == 0:
+@hydra.main(config_path="../config/", config_name="pretrain.yaml", version_base=None)
+def main(config: DictConfig):
+    """Main pre-training function"""
+    plugins = []
+    if config.verbose == 0:
         my_logger.setLevel(logging.WARN)
-    elif myconfig.verbose == 1:
+    elif config.verbose == 1:
         my_logger.setLevel(logging.INFO)
-    elif myconfig.verbose == 2:
+    elif config.verbose == 2:
         my_logger.setLevel(logging.DEBUG)
     callbacks = [
-        instantiate(cb_conf) for _, cb_conf in myconfig.callbacks.items()
+        instantiate(cb_conf) for _, cb_conf in config.callbacks.items()
     ]
     logger = [
         instantiate(logg_conf)
-        for _, logg_conf in myconfig.logger.items()
+        for _, logg_conf in config.logger.items()
     ]
-    if myconfig.train.trainer.precision in (16, "16"):
-        plugins = [
+    if config.train.trainer.precision in (16, "16"):
+        plugins.append(
             CustomMixedPrecisionPlugin(precision="16-mixed", device="cuda")
-        ]
-    else:
-        plugins = None
-    if myconfig.train.slurm_restart:
+        )
+    if config.train.slurm_restart:
         print("Automatic restart")
-        plugin = [
+        plugins.append(
             SLURMEnvironment(requeue_signal=signal.SIGHUP, auto_requeue=True)
-        ]
-        if plugins is not None:
-            plugins += plugin
-        else:
-            plugins = plugin
+        )
+    if len(plugins) == 0:
+        plugins = None
     my_trainer = instantiate(
-        myconfig.train.trainer,
+        config.train.trainer,
         callbacks=callbacks,
         logger=logger,
-        max_epochs=myconfig.train.trainer.max_epochs,
+        max_epochs=config.train.trainer.max_epochs,
         plugins=plugins,
         _convert_="partial",
     )
-    # if myconfig.load_model:  # To continue training
+    # if config.load_model:  # To continue training
     #     print("We are required to load a model ")
-    #     config_path = find_file(myconfig.path_dir_model, myconfig.dir_training)
-    #     ckpt_path = find_good_ckpt(myconfig.path_dir_model,
-    #                                myconfig.dir_training, "last")
-    #     myconfig = DictConfig(open_yaml(config_path))
+    #     config_path = find_file(config.path_dir_model, config.dir_training)
+    #     ckpt_path = find_good_ckpt(config.path_dir_model,
+    #                                config.dir_training, "last")
+    #     config = DictConfig(open_yaml(config_path))
     #     print(f"We are loading {ckpt_path}")
     #     possible_load_weights = False
     # else:
     #     ckpt_path = None
 
     # Check if there is a hydra config with hyperparameters
-    config_path = myconfig.get("hydra_config")
+    config_path = config.get("hydra_config")
     if config_path is not None:
-        myconfig = DictConfig(open_yaml(config_path))
+        config = DictConfig(open_yaml(config_path))
 
     # Resume from checkpoint
-    ckpt_path = myconfig.get("resume_from_checkpoint")
+    ckpt_path = config.get("resume_from_checkpoint")
     if ckpt_path is not None:
         my_logger.info("Training from checkpoint %s", ckpt_path)
     else:
         my_logger.info("Training from scratch")
     # Train the model
     datamodule: MMMaskDataModule = instantiate(
-        myconfig.datamodule.datamodule,
-        config_dataset=myconfig.dataset,
+        config.datamodule.datamodule,
+        config_dataset=config.dataset,
         _recursive_=False,
     )
     pl_module: AliseMM = instantiate(
-        myconfig.module,
+        config.module,
         _recursive_=False
-        # TODO do better than that load stats of each mod
     )
-    if myconfig.get("seed"):
-        seed_everything(myconfig.seed, workers=True)
+    if config.get("seed"):
+        seed_everything(config.seed, workers=True)
     else:
         my_logger.info("No seed set")
     if isinstance(logger, list):
-        log_hyperparameters(config=myconfig, model=pl_module, logger=logger)
+        log_hyperparameters(config=config, model=pl_module, logger=logger)
 
-    if ckpt_path is not None:
-        my_trainer.fit(pl_module, datamodule=datamodule, ckpt_path=ckpt_path)
-    else:
-        my_trainer.fit(pl_module, datamodule=datamodule)
-        # TODO check that it does not reset the weights of the U-BARN
+    my_trainer.fit(pl_module, datamodule=datamodule, ckpt_path=ckpt_path)
 
 
 if __name__ == "__main__":
     torch.backends.cuda.enable_mem_efficient_sdp(False)
     torch.backends.cuda.enable_flash_sdp(False)
     torch.backends.cuda.enable_math_sdp(True)
-    main()
+    main()  # pylint: disable=no-value-for-parameter
