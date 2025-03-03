@@ -1,3 +1,7 @@
+# pylint: disable=invalid-name
+
+"""Loss functions"""
+
 import torch
 from einops import rearrange
 from mt_ssl.module.loss import create_mask_loss
@@ -5,14 +9,15 @@ from torch import nn
 
 from mmmv_ssl.data.dataclass import BatchOneMod, BatchMMSits
 from mmmv_ssl.model.datatypes import DataInputChannels
-from mmmv_ssl.module.dataclass import RecWithOrigin, DespeckleS1, Rec, LatRepr, OneViewRecL, TotalRecLoss, \
-    GlobalInvRecMMLoss
+from mmmv_ssl.module.dataclass import (
+    RecWithOrigin, DespeckleS1, Rec, LatRepr,
+    OneViewRecL, TotalRecLoss, GlobalInvRecMMLoss)
 from mmmv_ssl.utils.speckle_filter import despeckle_batch
 
 
 def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
     """Despeckle S1 image for rec loss computation"""
-    b, t, _, h, w = batch_sits.sits.shape  # pylint: disable=C0103
+    b, _, _, h, w = batch_sits.sits.shape  # pylint: disable=C0103
     despeckle_s1, margin = despeckle_batch(
         rearrange(batch_sits.sits, "b t c h w -> (b t ) c h w")
     )
@@ -26,16 +31,15 @@ def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
     return despeckle_s1, margin
 
 
-class ReconstructionLoss(nn.Module):
+class ReconstructionLoss:
     """"Reconstruction loss module"""
 
     def __init__(
             self,
             rec_loss: nn.Module = nn.MSELoss(),
             margin: int = 0,
-            channels:DataInputChannels = DataInputChannels()
+            channels: DataInputChannels = DataInputChannels()
     ):
-        super().__init__()
         self.rec_loss = rec_loss
         self.margin = margin
         self.channels = channels
@@ -44,7 +48,8 @@ class ReconstructionLoss(nn.Module):
                              rec_sits: RecWithOrigin,
                              sits: BatchOneMod,
                              original_sits: torch.Tensor,
-                             return_desp: DespeckleS1 | None = None, margin: int = 0,
+                             return_desp: DespeckleS1 | None = None,
+                             margin: int = 0,
                              mod: str = "s2"
                              ) -> OneViewRecL | tuple[None, DespeckleS1]:
         """
@@ -54,7 +59,7 @@ class ReconstructionLoss(nn.Module):
         valid_mask = create_mask_loss(
             sits.padd_index, ~sits.mask
         )  # in .mask True means pixel valid
-        h, w = sits.h, sits.w   # pylint: disable=C0103
+        h, w = sits.h, sits.w  # pylint: disable=C0103
         if mod == "s2":
             b = self.channels.s2
         else:
@@ -85,8 +90,7 @@ class ReconstructionLoss(nn.Module):
                     torch.masked_select(original_sits[:, :, :b], valid_mask),
                 ),
             )
-        else:
-            return None, return_desp
+        return None, return_desp
 
     def compute_rec_loss(
             self, batch: BatchMMSits, rec: Rec
@@ -104,26 +108,30 @@ class ReconstructionLoss(nn.Module):
         s1a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1a,
                                                  sits=batch.sits1a,
                                                  original_sits=despeckle_s1a,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a,
+                                                                         s1b=despeckle_s1b),
                                                  margin=margin,
-                                                 mod = "s1")
+                                                 mod="s1")
 
         s1b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s1b,
                                                  sits=batch.sits1b,
                                                  original_sits=despeckle_s1b,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b),
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a,
+                                                                         s1b=despeckle_s1b),
                                                  margin=margin,
-                                                 mod = "s1")
+                                                 mod="s1")
 
         s2a_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2a,
                                                  sits=batch.sits2a,
                                                  original_sits=batch.sits2a.sits,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a,
+                                                                         s1b=despeckle_s1b))
 
         s2b_rec_loss = self.compute_one_rec_loss(rec_sits=rec.s2b,
                                                  sits=batch.sits2b,
                                                  original_sits=batch.sits2b.sits,
-                                                 return_desp=DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b))
+                                                 return_desp=DespeckleS1(s1a=despeckle_s1a,
+                                                                         s1b=despeckle_s1b))
 
         return TotalRecLoss(
             s1_a=s1a_rec_loss,
@@ -133,18 +141,17 @@ class ReconstructionLoss(nn.Module):
         ), DespeckleS1(s1a=despeckle_s1a, s1b=despeckle_s1b)
 
 
-class InvarianceLoss(nn.Module):
+class InvarianceLoss:
+    """
+    Class for invariance loss (latent space loss).
+    """
+
     def __init__(
             self,
             inv_loss: nn.Module = nn.MSELoss(),
             same_mod_loss: bool = False,
             margin: int = 0
     ):
-        """
-        Class for invariance loss (latent space loss).
-        """
-
-        super().__init__()
         self.inv_loss = inv_loss
         self.same_mod_loss = same_mod_loss
         # self.margin = margin
@@ -185,24 +192,27 @@ class InvarianceLoss(nn.Module):
         return (crecb + creca) / 2
 
 
-class GlobalLoss(nn.Module):
+class GlobalLoss:
+    """
+    Class that assembles all different losses
+    and computes global loss as well.
+    """
+
     def __init__(
             self,
             w_inv: float = 1,
             w_rec: float = 1,
             w_cross_rec: float = 1
     ):
-        """
-        Class that assembles all different losses
-        and computes global loss as well.
-        """
-        super().__init__()
+
         self.w_rec = w_rec
         self.w_inv = w_inv
         self.w_cross_rec = w_cross_rec
 
     @staticmethod
-    def define_global_loss(tot_rec_loss: TotalRecLoss, inv_loss: torch.Tensor) -> None | GlobalInvRecMMLoss:
+    def define_global_loss(tot_rec_loss: TotalRecLoss,
+                           inv_loss: torch.Tensor
+                           ) -> None | GlobalInvRecMMLoss:
         """
         Define global loss.
         """
@@ -215,9 +225,12 @@ class GlobalLoss(nn.Module):
             )
         return global_loss
 
-    def compute_global_loss(self, global_loss: GlobalInvRecMMLoss) -> torch.Tensor:
+    def compute_global_loss(self,
+                            global_loss: GlobalInvRecMMLoss
+                            ) -> torch.Tensor:
         """
-        Compute global loss as weighted sum of reconstruction loss and invariance loss.
+        Compute global loss as weighted sum of
+        reconstruction loss and invariance loss.
         """
         if global_loss.inv_loss is not None:
             loss = self.w_inv * global_loss.inv_loss
@@ -237,12 +250,16 @@ class GlobalLoss(nn.Module):
         loss += self.compute_weighted_one_rec_loss(total_rec_loss.s1_b)
         return loss / 8
 
-    def compute_weighted_one_rec_loss(self, one_rec_loss: OneViewRecL) -> torch.Tensor:
+    def compute_weighted_one_rec_loss(
+            self,
+            one_rec_loss: OneViewRecL
+    ) -> torch.Tensor:
         """
         Compute weighted reconstruction loss for one view.
         """
         return (1 -
-                self.w_cross_rec) * one_rec_loss.monom_rec + self.w_cross_rec * one_rec_loss.crossm_rec
+                self.w_cross_rec) * one_rec_loss.monom_rec + \
+               self.w_cross_rec * one_rec_loss.crossm_rec
 
     def all_losses_dict(self, global_loss: GlobalInvRecMMLoss) -> dict[str, torch.Tensor]:
         """
@@ -252,8 +269,8 @@ class GlobalLoss(nn.Module):
             inv_loss = global_loss.inv_loss
         else:
             inv_loss = 0
-        d = {"invloss": inv_loss}
-        d.update(global_loss.total_rec_loss.to_dict())
+        dictionary = {"invloss": inv_loss}
+        dictionary.update(global_loss.total_rec_loss.to_dict())
         total = self.compute_global_loss(global_loss)
-        d.update({f"total_loss": total})
-        return d
+        dictionary.update({"total_loss": total})
+        return dictionary

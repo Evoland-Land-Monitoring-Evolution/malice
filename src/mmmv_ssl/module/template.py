@@ -1,23 +1,30 @@
+# pylint: disable=invalid-name
+
+"""
+Template Lightning Module
+"""
+
 import logging
-from abc import abstractmethod
 
 import lightning.pytorch as pl
 import pandas as pd
 import torch
 from hydra.utils import instantiate
-from mmmv_ssl.model.malice_module_aux import AliseMMModuleAux
 from omegaconf import DictConfig
 
 from mmmv_ssl.model.malice_module import AliseMMModule
+from mmmv_ssl.model.malice_module_aux import AliseMMModuleAux
 
 my_logger = logging.getLogger(__name__)
 
 
 class TemplateModule(pl.LightningModule):
+    """
+    Base model
+    """
+
     def __init__(self, model: AliseMMModule, lr: float = 0.001):
-        """
-        Base model
-        """
+
         super().__init__()
 
         self.df_metrics = None

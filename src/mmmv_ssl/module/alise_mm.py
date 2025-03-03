@@ -1,3 +1,5 @@
+"""Pytorch lightning module"""
+
 import logging
 from pathlib import Path
 
@@ -12,14 +14,17 @@ from mmmv_ssl.module.dataclass import (
     OutMMAliseSharedStep,
     WeightClass
 )
-from mmmv_ssl.module.loss import ReconstructionLoss, InvarianceLoss, GlobalLoss
+from mmmv_ssl.module.loss import \
+    ReconstructionLoss, InvarianceLoss, GlobalLoss
 from mmmv_ssl.module.template import TemplateModule
 
 my_logger = logging.getLogger(__name__)
 
 
 class AliseMM(TemplateModule):
-    """Pytorch Lightning class for MALICE algorithm"""
+    """
+    Pytorch Lightning class for MALICE and MALICE Aux algorithm
+    """
 
     def __init__(
             self,
@@ -32,10 +37,15 @@ class AliseMM(TemplateModule):
 
         self.margin = 3
 
-        self.inv_loss = InvarianceLoss(torch.nn.MSELoss(), same_mod_loss=same_mod_loss, margin=self.margin)
-        self.rec_loss = ReconstructionLoss(torch.nn.MSELoss(), margin=self.margin, channels=self.model.input_channels)
+        self.inv_loss = InvarianceLoss(torch.nn.MSELoss(),
+                                       same_mod_loss=same_mod_loss,
+                                       margin=self.margin)
+        self.rec_loss = ReconstructionLoss(torch.nn.MSELoss(),
+                                           margin=self.margin,
+                                           channels=self.model.input_channels)
         self.global_loss = GlobalLoss(weights.w_inv, weights.w_rec, weights.w_crossrec)
 
+        # If no invariance loss, we change projector of embeddings
         if weights.w_inv == 0:
             self.model.encoder.projector_emb = IdentityProj()  # TODO do better if possible
 
@@ -44,8 +54,9 @@ class AliseMM(TemplateModule):
 
         print(self.model)
 
-
-    def forward(self, batch: BatchMMSits) -> OutMMAliseF:
+    def forward(  # pylint: disable=arguments-differ
+            self, batch: BatchMMSits
+    ) -> OutMMAliseF:
         """Forward Malice"""
         return self.model.forward(batch)
 
@@ -65,7 +76,11 @@ class AliseMM(TemplateModule):
             loss=global_loss, out_forward=out_model, despeckle_s1=despeckle_s1
         )
 
-    def training_step(self, batch: BatchMMSits, batch_idx: int) -> None | torch.Tensor:
+    def training_step(  # pylint: disable=arguments-differ
+            self,
+            batch: BatchMMSits,
+            batch_idx: int  # pylint: disable=unused-argument
+    ) -> None | torch.Tensor:
         """Training step"""
         out_shared_step = self.shared_step(batch)
         if out_shared_step.loss is None:
@@ -86,7 +101,11 @@ class AliseMM(TemplateModule):
 
         return loss_dict["total_loss"]
 
-    def validation_step(self, batch: BatchMMSits, batch_idx: int) -> OutMMAliseSharedStep:
+    def validation_step(  # pylint: disable=arguments-differ
+            self,
+            batch: BatchMMSits,
+            batch_idx: int  # pylint: disable=unused-argument
+    ) -> OutMMAliseSharedStep:
         """Validation step"""
         out_shared_step = self.shared_step(batch)
 
@@ -103,7 +122,7 @@ class AliseMM(TemplateModule):
             )
         return out_shared_step
 
-    def load_weights(self, path_ckpt: str | Path, strict: bool =True) -> None:
+    def load_weights(self, path_ckpt: str | Path, strict: bool = True) -> None:
         """Load weights"""
         my_logger.info(f"We load state dict  from {path_ckpt}")
         if not torch.cuda.is_available():
