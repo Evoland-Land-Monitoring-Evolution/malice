@@ -1,3 +1,9 @@
+# pylint: disable=invalid-name
+"""
+Code taken from openeo_mmdc
+and optimized for malice and malice aux
+"""
+
 import logging
 import random
 from pathlib import Path
@@ -5,52 +11,51 @@ from typing import Literal
 
 import pandas as pd
 import torch
-from mmmv_ssl.data.dataclass import ItemTensorMMDC, OneMod
-from torch import Tensor
-
 from openeo_mmdc.dataset.dataclass import (
     MMDC_MAXLEN,
     PT_MMDC_DF,
     MaskMod,
-    ModTransform,
 )
 from openeo_mmdc.dataset.to_tensor import crop_tensor, get_crop_idx
+from torch import Tensor
+
+from mmmv_ssl.data.dataclass import ItemTensorMMDC, OneMod
 
 my_logger = logging.getLogger(__name__)
 
 
 def create_mmcd_tensor_df(
-    path_directory: str,
-    s2_tile,
-    modalities: list[Literal["s2", "s1_asc", "s1_desc", "dem", "agera5"]],
-    format=".pt",
+        path_directory: str,
+        s2_tile: list,
+        modalities: list[Literal["s2", "s1_asc", "s1_desc", "dem", "agera5"]],
+        file_format=".pt",
 ) -> PT_MMDC_DF:
+    """Create a DF with info about all modalities"""
     out_mod = {}
     for mod in modalities:
         out_mod[mod] = create_mod_df_tensor(
             path_dir=path_directory,
             s2_tile=s2_tile,
             modality=mod,
-            format=format,
+            file_format=file_format,
         )
     return PT_MMDC_DF(**out_mod)
 
 
 def create_mod_df_tensor(path_dir: str,
-                         s2_tile,
+                         s2_tile: list,
                          modality: str,
-                         format=".pt") -> pd.DataFrame:
+                         file_format=".pt") -> pd.DataFrame:
+    """Create a df with info about a modality tensor"""
     assert Path(path_dir).exists(), f"{path_dir} not found"
     print(modality)
     l_df = []
     for tile in s2_tile:
-        pattern = f"{tile}/*{modality}{format}"
-        l_s2 = [p
-                for p in Path(path_dir).rglob(pattern)]  # extract all s2 tiles
+        pattern = f"{tile}/*{modality}{file_format}"
+        l_s2 = list(Path(path_dir).rglob(pattern))  # extract all s2 tiles
         if not l_s2:
-            pattern = f"{tile}/*{modality.upper()}*{format}"
-            l_s2 = [p
-                    for p in Path(path_dir).rglob(pattern)]  # extract all s2 tiles
+            pattern = f"{tile}/*{modality.upper()}*{file_format}"
+            l_s2 = list(Path(path_dir).rglob(pattern))  # extract all s2 tiles
         l_df += [
             pd.DataFrame(
                 create_dict_one_sits(path_sits=path,
@@ -65,6 +70,7 @@ def create_mod_df_tensor(path_dir: str,
 
 
 def create_dict_one_sits(path_sits: Path, mod: str, s2_tile: str):
+    """Create dict for one sits  with its info"""
     patch_id = path_sits.name.split("openEO_")[-1][:2]
     return [{
         "mod": mod,
@@ -75,13 +81,14 @@ def create_dict_one_sits(path_sits: Path, mod: str, s2_tile: str):
 
 
 def crop_spat_temp(
-    tensor: Tensor,
-    x: int,
-    y: int,
-    crop_size: int,
-    list_t,
-    padding_val: int = 0,
+        tensor: Tensor,
+        x: int,
+        y: int,
+        crop_size: int,
+        list_t,
+        padding_val: int = 0,
 ):
+    """Crop spatio-temporal tensor"""
     assert (len(
         tensor.shape) == 4), f"expected tensor type c,t,h,w got {tensor.shape}"
     cropped_tensor = crop_tensor(tensor, x, y, crop_size)
@@ -99,15 +106,17 @@ def crop_spat_temp(
 
 
 def load_mmdc_sits(
-    c_mmdc_df: PT_MMDC_DF,
-    item,
-    crop_size: int,
-    crop_type: Literal["Center", "Random"],
-    max_len: MMDC_MAXLEN,  # TODO maybe add a specific len for each modality
-    opt: Literal["all", "s2", "s1", "sentinel", "s1s2", "aux"] = "all",
-    all_transform: ModTransform | None = None,
-    seed: int | None = None,
+        c_mmdc_df: PT_MMDC_DF,
+        item,
+        crop_size: int,
+        crop_type: Literal["Center", "Random"],
+        max_len: MMDC_MAXLEN,  # TODO maybe add a specific len for each modality
+        opt: Literal["all", "s2", "s1", "sentinel", "s1s2", "aux"] = "all",
+        seed: int | None = None,
 ) -> ItemTensorMMDC:
+    """
+    Load all the modalities and compute crop
+    """
     out = {}
     x, y = get_crop_idx(rows=128,
                         cols=128,
@@ -170,12 +179,13 @@ def load_mmdc_sits(
 
 
 def load_dem(
-    df_mod: pd.DataFrame,
-    item: int,
-    crop_size: int,
-    crop_x_y: tuple[int, int],
-    seed: int | None = None,
+        df_mod: pd.DataFrame,
+        item: int,
+        crop_size: int,
+        crop_x_y: tuple[int, int],
+        seed: int | None = None,
 ) -> torch.Tensor:
+    """Load DEM from .pt file and crop"""
     sits_series = df_mod.iloc[item]
     sits_obj: torch.Tensor = torch.load(sits_series["sits_path"])
 
@@ -184,19 +194,23 @@ def load_dem(
     if seed is not None:
         random.seed(seed)
 
-    crop_sits = sits_obj[..., x : x + crop_size, y : y + crop_size]
+    crop_sits = sits_obj[..., x: x + crop_size, y: y + crop_size]
 
     return crop_sits
 
 
 def load_sits(
-    df_mod: pd.DataFrame,
-    item: int,
-    crop_size: int,
-    crop_x_y: tuple[int, int],
-    max_len: None | int,
-    seed: int | None = None,
+        df_mod: pd.DataFrame,
+        item: int,
+        crop_size: int,
+        crop_x_y: tuple[int, int],
+        max_len: None | int,
+        seed: int | None = None,
 ) -> OneMod:
+    """
+    Load sits from .pt file and crop
+    If its len > MAX_LEN then randomly select dates
+    """
     sits_series = df_mod.iloc[item]
     sits_obj: OneMod = torch.load(sits_series["sits_path"])
     shape_sits = sits_obj.sits.shape
@@ -207,12 +221,12 @@ def load_sits(
     if max_len is not None:
         if max_len < shape_sits[1]:
             temp_idx = sorted(
-                random.sample([i for i in range(shape_sits[1])], max_len))
+                random.sample(range(shape_sits[1]), max_len))
         else:
             my_logger.debug(
                 f"sits temporal dim {shape_sits[1]} is lower than max len"
                 f" {max_len}")
-            temp_idx = [i for i in range(shape_sits[1])]
+            temp_idx = range(shape_sits[1])
 
     else:
         temp_idx = None
@@ -239,7 +253,7 @@ def load_sits(
     else:
         temp_cropped_doy = sits_obj.doy
 
-    if sits_obj.meteo is not None:
+    if hasattr(sits_obj, "meteo") and sits_obj.meteo is not None:
         if temp_idx is not None:
             meteo = sits_obj.meteo[:, temp_idx]
         else:
