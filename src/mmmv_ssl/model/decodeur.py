@@ -7,11 +7,10 @@ import logging
 
 import numpy as np
 import torch
-from torch import nn
 from einops import rearrange
+from torch import nn
 
 from mmmv_ssl.model.transformer import TransformerBlock
-from mmmv_ssl.model.datatypes import TransformerBlockConfig
 
 my_logger = logging.getLogger(__name__)
 
@@ -80,13 +79,14 @@ class MetaDecoder(nn.Module):
     """
     Common meta-decoder for S1/S2 reconstruction
     """
+
     def __init__(
             self,
             num_heads: int,
             input_channels: int,
             d_k: int,
             d_q_in: int,
-            intermediate_layers: TransformerBlockConfig | None = None,
+            intermediate_layers: TransformerBlock | None = None,
     ):
         super().__init__()
         self.num_heads = num_heads
@@ -95,10 +95,7 @@ class MetaDecoder(nn.Module):
                                                      d_in=input_channels,
                                                      d_q_in=d_q_in)
         self.input_channels = input_channels
-        if intermediate_layers is None:
-            self.intermediate_layers = None
-        else:
-            self.intermediate_layers = TransformerBlock(intermediate_layers)
+        self.intermediate_layers = intermediate_layers
         # elif isinstance(intermediate_layers, TransformerBlock):
         #     self.intermediate_layers = intermediate_layers
         # elif isinstance(intermediate_layers, DictConfig):
