@@ -7,11 +7,11 @@ from mmmv_ssl.data.dataset.pretraining_mm_mask import split_one_mod
 
 def test_mask_one_mod():
     T = 20
-    input_val = torch.arange(T)
+    input_val = torch.randn(T)
     mask = torch.randn(T) < 0.5
     sits = repeat(input_val, "t -> t c h w", c=10, h=16, w=16)
     sits_one_mod = SITSOneMod(
-        sits=sits, input_doy=input_val, true_doy=input_val, mask=mask[:, None]
+        sits=sits, input_doy=input_val, true_doy=input_val, mask=mask[:, None, None, None]
     )
     sits1, sits2 = split_one_mod(sits_one_mod, max_len=10)
     assert sits1.sits.shape == (10, 10, 16, 16)
