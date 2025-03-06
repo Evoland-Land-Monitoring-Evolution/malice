@@ -51,8 +51,6 @@ To pretrain MALICE model, please, modify files `config/pretrain_proj.yaml`, `con
 To pretrain MALICE Aux model, please, modify files `config/pretrain_proj.yaml` and `config/module/alise_mm_proj.yaml`, `config/datamodule/mask_mm_aux.yaml` and `config/dataset/mask_mm_aux.yaml`.
 
 
-
-
 # Inference
 
 Pretrained models will be available here soon...
