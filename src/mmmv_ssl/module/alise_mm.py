@@ -52,7 +52,7 @@ class AliseMM(TemplateModule):
         # for name, param in self.model.named_parameters():
         #     print(name, param.requires_grad)
 
-        print(self.model)
+        # print(self.model)
 
     def forward(  # pylint: disable=arguments-differ
             self, batch: BatchMMSits
@@ -67,8 +67,7 @@ class AliseMM(TemplateModule):
         tot_rec_loss, despeckle_s1 = self.rec_loss.compute_rec_loss(
             batch=batch, rec=out_model.rec
         )
-
-        inv_loss = self.inv_loss.compute_inv_loss(out_model.emb)
+        inv_loss = self.inv_loss.compute_inv_loss(out_model.emb, batch_size=batch.sits1a.b, patch_size=batch.sits1a.h)
 
         global_loss = self.global_loss.define_global_loss(tot_rec_loss, inv_loss)
 
