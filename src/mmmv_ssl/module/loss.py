@@ -4,7 +4,6 @@
 
 import torch
 from einops import rearrange
-from mt_ssl.module.loss import create_mask_loss
 from torch import nn
 
 from mmmv_ssl.data.dataclass import BatchOneMod, BatchMMSits
@@ -13,6 +12,31 @@ from mmmv_ssl.module.dataclass import (
     RecWithOrigin, DespeckleS1, Rec, LatRepr,
     OneViewRecL, TotalRecLoss, GlobalInvRecMMLoss)
 from mmmv_ssl.utils.speckle_filter import despeckle_batch
+
+
+def create_mask_loss(
+        padd_mask: torch.Tensor,
+        valid_mask: None | torch.Tensor = None
+) -> torch.Tensor:
+    """
+    Args:
+        valid_mask (): shape (b,n,h,w) True when pixel in correct acquisition
+        padd_mask (): shape (b,n) true when the input was padded !
+
+    Returns:
+    a torch tensor shape  (b,n,1,1,1)
+    True when  the data point was not temporally padded anh has correct acquisition
+    """
+
+    padd_mask = padd_mask.unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+
+    valid_mask = valid_mask.bool()
+
+    if valid_mask is not None:
+        valid_mask.masked_fill_(padd_mask, False)
+        return valid_mask.bool()
+
+    return ~(padd_mask.bool())
 
 
 def despeckle(batch_sits: BatchOneMod) -> tuple[torch.Tensor, int]:
