@@ -1,0 +1,306 @@
+original_work_dir: ${hydra:runtime.cwd}
+name: malice_pretrain_aux
+output_dir: /work/scratch/data/${oc.env:USER}/MMDC/results/malice
+run_id: ${now:%Y-%m-%d}_${now:%H-%M-%S}
+data_dir: /work/CESBIO/projects/DeepChange/Ekaterina/MMDC_MALICE
+resume_from_checkpoint: null
+hydra_config: null
+seed: 0
+verbose: 0
+datamodule:
+  datamodule:
+    _target_: mmmv_ssl.data.datamodule.mm_aux_datamodule.MMMaskDataModuleAux
+    num_workers: 2
+    batch_size: 2
+    path_dir_csv: ${data_dir}
+module:
+  _target_: mmmv_ssl.module.alise_mm.AliseMM
+  model:
+    _target_: mmmv_ssl.model.malice_module_aux.AliseMMModuleAux
+    encoder:
+      _target_: mmmv_ssl.model.datatypes.EncoderConfig
+      encoder_s1:
+        _target_: mmmv_ssl.model.datatypes.CleanUBarnConfig
+        ne_layers: 3
+        d_model: 64
+        d_hidden: 128
+        dropout: 0.1
+        block_name: pff
+        norm_first: false
+        nhead: 4
+        attn_dropout: 0.1
+        encoding_config:
+          _target_: mmmv_ssl.model.datatypes.UnetConfig
+          encoder_widths:
+          - 64
+          - 64
+          - 64
+          - 128
+          decoder_widths:
+          - 32
+          - 32
+          - 64
+          - 128
+          encoder_norm: batch
+          padding_mode: reflect
+          decoding_norm: batch
+          return_maps: false
+          str_conv_k: 2
+          str_conv_s: 2
+          str_conv_p: 0
+          border_size: 0
+          skip_conv_norm: batch
+      encoder_s2:
+        _target_: mmmv_ssl.model.datatypes.CleanUBarnConfig
+        ne_layers: 3
+        d_model: 64
+        d_hidden: 128
+        dropout: 0.1
+        block_name: pff
+        norm_first: false
+        nhead: 4
+        attn_dropout: 0.1
+        encoding_config:
+          _target_: mmmv_ssl.model.datatypes.UnetConfig
+          encoder_widths:
+          - 64
+          - 64
+          - 64
+          - 128
+          decoder_widths:
+          - 32
+          - 32
+          - 64
+          - 128
+          encoder_norm: batch
+          padding_mode: reflect
+          decoding_norm: batch
+          return_maps: false
+          str_conv_k: 2
+          str_conv_s: 2
+          str_conv_p: 0
+          border_size: 0
+          skip_conv_norm: batch
+      encoder_dem:
+        _target_: mmmv_ssl.model.datatypes.UnetConfig
+        encoder_widths:
+        - 64
+        - 64
+        - 64
+        - 128
+        decoder_widths:
+        - 32
+        - 32
+        - 64
+        - 128
+        encoder_norm: batch
+        padding_mode: reflect
+        decoding_norm: batch
+        return_maps: false
+        str_conv_k: 2
+        str_conv_s: 2
+        str_conv_p: 0
+        border_size: 0
+        skip_conv_norm: batch
+      encoder_meteo:
+        _target_: mmmv_ssl.model.datatypes.MeteoConfig
+        widths:
+        - 64
+        - 64
+        - 32
+        activation: relu
+        common_s1_s2: false
+        concat_before_unet: true
+      common_temp_proj:
+        _target_: mmmv_ssl.model.datatypes.CommonTempProjConfig
+        num_heads: 2
+        n_q: 10
+      projector:
+        _target_: mmmv_ssl.model.datatypes.AliseProjConfig
+        l_dim:
+        - 64
+        out_channels: 64
+        freeze: true
+    decoder:
+      _target_: mmmv_ssl.model.datatypes.DecoderConfig
+      meta_decoder:
+        _target_: mmmv_ssl.model.datatypes.MetaDecoderConfig
+        num_heads: 2
+        d_k: 64
+        intermediate_layers: null
+      query_s1s2_d: 16
+      pe_channels: 64
+    input_channels:
+      _target_: mmmv_ssl.model.datatypes.DataInputChannels
+      s2: 10
+      s1: 3
+      s2_meteo: 48
+      s1_meteo: 48
+      s2_aux: 6
+      s1_aux: 1
+      dem: 4
+    d_repr: 64
+  weights:
+    _target_: mmmv_ssl.module.dataclass.WeightClass
+    w_rec: 1
+    w_inv: 1
+    w_crossrec: 0
+  lr: 0.001
+  same_mod_loss: true
+train:
+  trainer:
+    _target_: lightning.pytorch.Trainer
+    log_every_n_steps: 10
+    num_nodes: 1
+    devices: 1
+    val_check_interval: 1.0
+    accelerator: gpu
+    deterministic: false
+    enable_model_summary: false
+    max_epochs: 150
+    min_epochs: 100
+    detect_anomaly: false
+    accumulate_grad_batches: 1
+    limit_val_batches: 1.0
+    limit_train_batches: 1.0
+    check_val_every_n_epoch: 1
+    profiler: simple
+    precision: 32
+    num_sanity_val_steps: 0
+  slurm_restart: true
+  profiler: null
+  matmul_prec: high
+  seed: 1
+callbacks:
+  s1a_image:
+    _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+    n_images: 10
+    opt: s1a
+    plot_bands:
+    - 0
+    - 1
+    - 2
+    normalize: false
+    value_range:
+    - -0.6
+    - 0.5
+  s1b_image:
+    _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+    n_images: 10
+    opt: s1b
+    plot_bands:
+    - 0
+    - 1
+    - 2
+    normalize: false
+    value_range:
+    - -0.6
+    - 0.5
+  s2a_image:
+    _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+    n_images: 10
+    normalize: true
+    value_range:
+    - 100
+    - 3000
+    opt: s2a
+  s2b_image:
+    _target_: mmmv_ssl.callbacks.mae_visu.MAECrossRecClb
+    n_images: 10
+    normalize: true
+    value_range:
+    - 100
+    - 3000
+    opt: s2b
+  emb_s2a:
+    _target_: mmmv_ssl.callbacks.mae_visu.EmbeddingsVisu
+    n_images: 10
+    opt: s2a
+    normalize: false
+  emb_s1a:
+    _target_: mmmv_ssl.callbacks.mae_visu.EmbeddingsVisu
+    n_images: 10
+    opt: s1a
+    normalize: false
+  learningrate:
+    _target_: lightning.pytorch.callbacks.LearningRateMonitor
+  stopping:
+    _target_: lightning.pytorch.callbacks.EarlyStopping
+    monitor: val/total_loss
+    mode: min
+    patience: 20
+  checkpoint:
+    _target_: lightning.pytorch.callbacks.ModelCheckpoint
+    monitor: val/total_loss
+    verbose: true
+    save_top_k: 2
+    save_last: true
+    dirpath: ${output_dir}/checkpoints/${name}/${run_id}
+    auto_insert_metric_name: true
+    filename: '{epoch:02d}'
+logger:
+  tensorboard:
+    _target_: lightning.pytorch.loggers.TensorBoardLogger
+    save_dir: ${output_dir}/tb_logs
+    name: ${name}
+    version: ${run_id}
+  csv:
+    _target_: lightning.pytorch.loggers.csv_logs.CSVLogger
+    save_dir: ${output_dir}/csv_logs
+    name: ${name}
+    version: ${run_id}
+dataset:
+  train:
+    _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDatasetAux
+    directory: ${data_dir}/train
+    crop_type: Random
+    s2_tile:
+    - 30TXT
+    - 31TDL
+    - 31TEN
+    - 32TPQ
+    - 32TPT
+    - 32UMB
+    - 32UQD
+    - 33TVM
+    - 33TYJ
+    - 33UXR
+    - 34TFR
+    - 34UEC
+    modalities:
+    - s2
+    - s1_asc
+    - dem
+    max_len: 60
+  val:
+    _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDatasetAux
+    directory: ${data_dir}/val
+    crop_type: Random
+    s2_tile:
+    - 30TYR
+    - 31TEK
+    - 32TNR
+    - 32UPC
+    - 33TXK
+    - 34UDB
+    modalities:
+    - s2
+    - s1_asc
+    - dem
+    max_len: 60
+  test:
+    _target_: mmmv_ssl.data.dataset.pretraining_mm_mask.PretrainingMMMaskDatasetAux
+    directory: ${data_dir}/val
+    crop_type: Random
+    s2_tile:
+    - 30TYR
+    - 31TEK
+    - 32TNR
+    - 32UPC
+    - 33TXK
+    - 34UDB
+    modalities:
+    - s2
+    - s1_asc
+    - dem
+    max_len: 60
