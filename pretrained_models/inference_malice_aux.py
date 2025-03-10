@@ -59,7 +59,7 @@ def apply_transform_basic(
     return batch_sits
 
 
-# For inference we open a model checkpoint and config file
+# For inference, we open a model checkpoint and config file
 path_alise_model = "malice_aux/malice-aux-wr1-winv1-wcr0_f64_seed0_same_mod_epoch=121.ckpt"
 hydra_conf = path_alise_model.split(".")[0] + "_config.yaml"
 path_csv = "malice_aux/"
@@ -121,6 +121,7 @@ for sat in ["S1_ASC", "S2"]:
             meteo=input.meteo[None, ...].to(DEVICE),
         )
 
+    # Inference
     repr_encoder.eval()
     with torch.no_grad():
         ort_out = repr_encoder.forward_keep_input_dim(
