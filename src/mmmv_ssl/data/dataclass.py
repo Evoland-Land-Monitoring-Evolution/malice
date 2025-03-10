@@ -146,8 +146,9 @@ class BatchOneMod:
             self.meteo = self.meteo.pin_memory()
         return self
 
-    def to(self, device: torch.device | None, dtype: torch.dtype | None):
-        """To device"""
+    def to(self, device: torch.device | None = None,
+           dtype: torch.dtype | None = None):
+        """To device and to dtype"""
         self.sits = self.sits.to(device=device, dtype=dtype)
         self.input_doy = self.input_doy.to(device, dtype=dtype)
         if self.true_doy is not None:
