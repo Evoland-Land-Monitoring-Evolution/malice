@@ -53,4 +53,5 @@ To pretrain MALICE Aux model, please, modify files `config/pretrain_proj.yaml` a
 
 # Inference
 
-Pretrained models will be available here soon...
+Pretrained models are available in folder `pretrained_models`. 
+For the inference example, see `pretrained_models/inference_malice.py` and `pretrained_models/inference_malice_aux.py`.
